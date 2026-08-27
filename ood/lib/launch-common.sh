@@ -173,14 +173,24 @@ lc_make_state_dirs() {
 
 # lc_build_binds <course_folder> <scratch_root> <job_state> <job_tmp> <ssh_mask>
 #
-# Populates LC_BINDS. The real home is deliberately absent: it is mounted by
-# --home, because --env-file cannot set HOME and Apptainer otherwise derives it
-# from the passwd entry. Binds are kept in an array and expanded quoted at the
-# call site; flattening them into a string has been introduced, corrected, and
-# re-introduced in this app family.
+# Populates LC_BINDS. The real home needs BOTH --home (to set HOME, since
+# --env-file cannot) AND an explicit bind here (to actually mount it):
+# lc_run's --no-mount home,... suppresses the mount that --home would
+# otherwise perform on its own, so without this bind the container's HOME
+# points at a path that does not exist inside the container.
+#
+# The home bind must come FIRST, before the .ssh mask: the mask's destination
+# is a path beneath home, and Apptainer applies binds in order, so mounting
+# the mask before home exists fails the launch outright with
+# "destination .../.ssh doesn't exist in container".
+#
+# Binds are kept in an array and expanded quoted at the call site; flattening
+# them into a string has been introduced, corrected, and re-introduced in this
+# app family.
 lc_build_binds() {
     local course="$1" scratch="$2" job_state="$3" job_tmp="$4" ssh_mask="$5"
     LC_BINDS=(
+        -B "${HOME}:${HOME}"
         -B "${course}:${course}"
         -B "${scratch}:${scratch}"
         -B "${job_state}:/state"

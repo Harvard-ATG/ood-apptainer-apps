@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
 . lib/assert.sh
 # shellcheck source=lib/fixture.sh
@@ -40,6 +40,12 @@ probe() { lc_run "$APB" "$IMAGE" "$ENVF" /bin/sh -c "$1" 2>/dev/null; }
 
 it "container HOME is the student's real home"
 assert_eq "$(probe 'echo $HOME')" "$FAKE_HOME"
+
+it "the real home's existing content is visible, not an empty auto-created dir"
+# Binding anything under $HOME auto-creates $HOME in the container, so a
+# writability check alone passes even when the home mount is entirely missing.
+echo "home-marker" > "$FAKE_HOME/home-marker.txt"
+assert_eq "$(probe 'cat $HOME/home-marker.txt 2>/dev/null')" "home-marker"
 
 it "container home is writable"
 assert_eq "$(probe 'touch $HOME/probe && echo writable')" "writable"

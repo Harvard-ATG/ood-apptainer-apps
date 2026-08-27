@@ -4,6 +4,11 @@ From: alpine:3.20
 %post -c /bin/sh
   echo stub > /opt/marker
 
+  # The real app images are Debian-based and have bash; the in-container
+  # launchers use `#!/usr/bin/env bash`. The stub must match or it cannot
+  # execute them at all.
+  apk add --no-cache bash
+
   # Shim standing in for a real server. Records argv and PID, then holds a
   # listening socket so OOD readiness checks succeed.
   cat > /usr/local/bin/_stub-server <<'SHIM'

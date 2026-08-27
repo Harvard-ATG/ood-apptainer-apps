@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
 . lib/assert.sh
 # shellcheck source=lib/fixture.sh
