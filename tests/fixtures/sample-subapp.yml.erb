@@ -1,0 +1,35 @@
+<%-
+adminGroups = [
+  "ondemand-admins-1025174" # HUIT OOD admin group, prod environment
+]
+enabledGroups = [
+  "170681" # COMPSCI 1090A
+]
+
+def arrays_have_common_element(array1, array2)
+  !(array1 & array2).empty?
+end
+
+userGroups = OodSupport::User.new.groups.sort_by(&:id).map(&:name)
+if arrays_have_common_element(userGroups, adminGroups)
+  cluster="*"
+else
+  userCanvasGroups = userGroups.flat_map{ |str| str.scan(/^canvas(\d+)-\d+/) }.flatten
+  if arrays_have_common_element(userCanvasGroups, enabledGroups)
+    cluster="*"
+  else
+    cluster="disable_this_app"
+  end
+end
+-%>
+---
+cluster: "<%= cluster %>"
+title: "Jupyter Lab - COMPSCI 1090A"
+cacheable: false
+attributes:
+  imagefile: "jupyter-codeserver-ai/jupyterlab-20260827T000000Z-abc1234.sif"
+  course: "170681"
+  unlisted_attr: "should-not-reach-context"
+form:
+  - imagefile
+  - course
