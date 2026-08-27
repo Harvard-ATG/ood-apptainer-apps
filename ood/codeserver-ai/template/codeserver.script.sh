@@ -19,13 +19,12 @@ log "course environment=${COURSE_ENV}"
 USER_DATA_DIR=/state/code-server
 mkdir -p "${USER_DATA_DIR}/User"
 
-# Seed the machine settings from the image, then point the Python extension at
-# the course interpreter. Generated at launch so the course path is not baked
-# into the shared image. Workspace trust is restored on every launch, so a user
-# change lasts only for the session.
-if [ -r /etc/code-server/settings.json ]; then
-    cp /etc/code-server/settings.json "${USER_DATA_DIR}/User/settings.json"
-fi
+# Generated at launch so the course interpreter path is not baked into the
+# shared image. This currently contains only the two keys below -- there is no
+# image yet to seed additional settings from (Plan 1). Merging the image's
+# seed settings.json is Plan 2's job, once the image exists and its content is
+# known. Workspace trust is restored on every launch, so a user change lasts
+# only for the session.
 cat > "${USER_DATA_DIR}/User/settings.json" <<SETTINGS
 {
   "python.defaultInterpreterPath": "${COURSE_ENV}/bin/python",

@@ -134,4 +134,17 @@ assert_contains "$CS_ARGV" "--disable-telemetry"
 it "codeserver: runs as the direct child of container init, with no shell between"
 assert_eq "$(cat "$FAKE_JOB_STATE/server.ppid" 2>/dev/null)" "1"
 
+# /state is bound from the host at $FAKE_JOB_STATE, so the settings file the
+# launcher wrote inside the container is visible here at the host path.
+SETTINGS_FILE="$FAKE_JOB_STATE/code-server/User/settings.json"
+
+it "codeserver: generates a settings.json for the workspace"
+assert_success test -f "$SETTINGS_FILE"
+
+it "codeserver: workspace trust is disabled -- the single most security-relevant in-container setting"
+assert_contains "$(cat "$SETTINGS_FILE")" '"security.workspace.trust.enabled": false'
+
+it "codeserver: points the Python extension at the course interpreter"
+assert_contains "$(cat "$SETTINGS_FILE")" "\"python.defaultInterpreterPath\": \"$FAKE_ENV_ROOT/default/bin/python\""
+
 finish
