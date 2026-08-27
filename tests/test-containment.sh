@@ -106,14 +106,61 @@ assert_eq "$(probe 'command -v sbatch >/dev/null 2>&1 && echo PRESENT || echo ab
 it "no Munge socket is present"
 assert_eq "$(probe 'test -e /run/munge && echo PRESENT || echo absent')" "absent"
 
-it "the secret value does not appear in the Apptainer command line"
-# Reconstruct the argv the launcher would produce and assert the secret is absent.
-lc_sterile_prefix
-argv="${LC_STERILE[*]} $APB exec --containall --cleanenv --no-mount home,cwd,tmp,hostfs,bind-paths --home $HOME:$HOME --env-file $ENVF ${LC_BINDS[*]} $IMAGE"
-assert_not_contains "$argv" "s3cr3t-must-not-appear-on-argv"
+# --- Observe the REAL Apptainer invocation, rather than trusting a hand-built
+# string. lc_sterile_prefix invokes the binary via `env -i`, which strips even
+# variables this test exports, so the recording shim below cannot learn the
+# real apptainer path or the log destination through the environment -- both
+# are baked into the shim's own script text instead.
+#
+# printf '%s\0' is null-separated: an argument containing a space cannot be
+# confused with an argument boundary the way a plain string join would allow.
+REAL_APPTAINER_BIN=$(command -v apptainer)
+ARGV_LOG="$FIXTURE_ROOT/apptainer-argv.log"
+RECORDING_SHIM="$FIXTURE_ROOT/apptainer-recorder"
+cat > "$RECORDING_SHIM" <<SHIM
+#!/usr/bin/env bash
+# Records the argv it was called with, then execs the real apptainer.
+printf '%s\0' "\$@" >> "$ARGV_LOG"
+exec "$REAL_APPTAINER_BIN" "\$@"
+SHIM
+chmod 755 "$RECORDING_SHIM"
 
-it "the environment file path may appear in argv"
-assert_contains "$argv" "$ENVF"
+: > "$ARGV_LOG"
+lc_run "$RECORDING_SHIM" "$IMAGE" "$ENVF" /bin/true >/dev/null 2>&1
+REAL_ARGV=$(tr '\0' '\n' < "$ARGV_LOG")
+# Wrapped in newlines so a check for the exact token "--env" cannot be
+# satisfied by "--env-file", which contains "--env" as a substring.
+REAL_ARGV_LINES=$'\n'"$REAL_ARGV"$'\n'
+
+it "the secret value does not appear in the real Apptainer argv"
+assert_not_contains "$REAL_ARGV" "s3cr3t-must-not-appear-on-argv"
+
+it "--containall appears in the real argv"
+assert_contains "$REAL_ARGV" "--containall"
+
+it "--cleanenv appears in the real argv"
+assert_contains "$REAL_ARGV" "--cleanenv"
+
+it "--no-mount appears in the real argv"
+assert_contains "$REAL_ARGV" "--no-mount"
+
+it "--no-mount's value is home,cwd,tmp,hostfs,bind-paths in the real argv"
+assert_contains "$REAL_ARGV" "home,cwd,tmp,hostfs,bind-paths"
+
+it "--home appears in the real argv"
+assert_contains "$REAL_ARGV" "--home"
+
+it "--env-file appears in the real argv"
+assert_contains "$REAL_ARGV" "--env-file"
+
+it "the environment file path appears in the real argv (the path is permitted; only values are not)"
+assert_contains "$REAL_ARGV" "$ENVF"
+
+it "--env does not appear at all in the real argv"
+# The spec forbids passing container environment values as arguments. A bare
+# "--env" is exactly what a regression smuggling a secret via --env KEY=value
+# would add, and is distinct from the permitted "--env-file".
+assert_not_contains "$REAL_ARGV_LINES" $'\n--env\n'
 
 it "lc_run does not replace the calling shell"
 # If lc_run exec'd, this line would never run.
