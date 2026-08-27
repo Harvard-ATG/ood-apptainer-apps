@@ -49,6 +49,19 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: validates the environment prefix before launch"
     assert_contains "$body" "lc_validate_under"
 
+    it "$app: checks the course folder exists and is readable before building binds"
+    # lc_validate_under uses realpath -m (tolerates missing components) and the
+    # course folder is only ever the root of a validation, never the target, so
+    # an absent course folder is otherwise caught nowhere -- surfacing 600
+    # seconds later as an opaque Apptainer bind error instead of a clear
+    # message at launch.
+    assert_contains "$body" "course folder not found or not readable"
+
+    it "$app: the course folder check precedes building the binds"
+    check_pos=$(printf '%s' "$body" | grep -n "course folder not found or not readable" | head -1 | cut -d: -f1)
+    binds_pos=$(printf '%s' "$body" | grep -n "^lc_build_binds" | head -1 | cut -d: -f1)
+    assert_eq "$([ "$check_pos" -lt "$binds_pos" ] && echo before || echo after)" "before"
+
     it "$app: builds binds through the shared helper"
     assert_contains "$body" "lc_build_binds"
 

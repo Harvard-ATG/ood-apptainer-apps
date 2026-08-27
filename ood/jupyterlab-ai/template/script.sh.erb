@@ -53,7 +53,7 @@ log "course environment=${COURSE_ENV}"
 # ---------------------------------------------------------------------------
 # Overridable so the test suite can point the state layout at a fixture
 # instead of the real /scratch. The default is the spec's State layout value.
-SCRATCH_ROOT="${OOD_AI_SCRATCH_ROOT:-/scratch/${USER}/ood/jupyter-codeserver-ai}"
+SCRATCH_ROOT="${OOD_AI_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
 JOB_STATE="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/state"
 JOB_TMP="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/tmp"
 SSH_MASK="${JOB_STATE}/ssh-mask"
@@ -108,6 +108,16 @@ lc_write_env_file "${ENV_FILE}" \
 CONTAINER_IMAGE=$(lc_select_image "${IMAGE_FILE}") || exit 1
 APPTAINER_BIN=$(lc_apptainer_bin) || exit 1
 log "apptainer=${APPTAINER_BIN}"
+
+# lc_validate_under uses realpath -m, which tolerates missing path components,
+# and the course folder is only ever the root of a validation, never the
+# target -- so nothing above catches an absent course folder. Without this
+# check, a missing course folder surfaces 600 seconds later as an opaque
+# Apptainer bind error instead of a clear message at launch.
+if [ ! -d "${COURSE_FOLDER}" ] || [ ! -r "${COURSE_FOLDER}" ]; then
+    log "ERROR: course folder not found or not readable: ${COURSE_FOLDER}"
+    exit 1
+fi
 
 lc_build_binds "${COURSE_FOLDER}" "${SCRATCH_ROOT}" "${JOB_STATE}" "${JOB_TMP}" "${SSH_MASK}"
 log "binds=${LC_BINDS[*]}"
