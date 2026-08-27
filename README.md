@@ -48,9 +48,11 @@ double from the sub-app's `form:` list only, because that is what OOD actually
 passes through — an attribute set under `attributes:` but omitted from `form:`
 silently reaches templates as nothing.
 
-Images used by tests are taken from `OOD_AI_TEST_IMAGE`, which may be a `.sif`
-or an Apptainer sandbox directory. Where `/dev/fuse` is unavailable, the fixture
-builds a sandbox directory automatically.
+`fixture_image` builds (or reuses a cached) stub image, which may be a `.sif` or
+an Apptainer sandbox directory -- the fixture builds a sandbox directory
+automatically where `/dev/fuse` is unavailable. It exports the resulting path as
+`OOD_AI_TEST_IMAGE` for any test that wants it, but nothing else reads that
+variable as an input.
 
 ## After editing the shared library
 

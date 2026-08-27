@@ -72,7 +72,7 @@ fixture_image() {
         local build_out build_err
         case "$target" in
             *.sif)
-                build_out=$(apptainer build --fakeroot "$tmpbuild.sif" "$def" 2>&1) || {
+                build_out=$("${OOD_AI_APPTAINER_BIN:-apptainer}" build --fakeroot "$tmpbuild.sif" "$def" 2>&1) || {
                     printf 'fixture_image: apptainer build failed: %s\n' "$build_out" >&2
                     rm -rf "$tmpbuild.sif"
                     return 1
@@ -85,7 +85,7 @@ fixture_image() {
                 }
                 ;;
             *)
-                build_out=$(apptainer build --fakeroot --sandbox "$tmpbuild.dir" "$def" 2>&1) || {
+                build_out=$("${OOD_AI_APPTAINER_BIN:-apptainer}" build --fakeroot --sandbox "$tmpbuild.dir" "$def" 2>&1) || {
                     printf 'fixture_image: apptainer build failed: %s\n' "$build_out" >&2
                     rm -rf "$tmpbuild.dir"
                     return 1
