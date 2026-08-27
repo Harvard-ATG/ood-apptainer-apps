@@ -131,3 +131,60 @@ lc_sterile_prefix() {
         LC_STERILE+=( "LD_LIBRARY_PATH=${LC_LD_LIBRARY_PATH}" )
     fi
 }
+
+# lc_validate_under <target> <root>
+#
+# Echoes the fully resolved target when it stays beneath root; fails otherwise.
+# Callers must use the echoed value for the lifetime of the job, so that a
+# staff symlink switch mid-session cannot move a running job's prefix.
+# realpath -m resolves without requiring every component to exist.
+lc_validate_under() {
+    local target="$1" root="$2" resolved_target resolved_root
+
+    resolved_target=$(realpath -m "$target" 2>/dev/null) || {
+        lc_log "ERROR: cannot resolve ${target}"
+        return 1
+    }
+    resolved_root=$(realpath -m "$root" 2>/dev/null) || {
+        lc_log "ERROR: cannot resolve root ${root}"
+        return 1
+    }
+
+    case "$resolved_target" in
+        "$resolved_root"|"$resolved_root"/*)
+            printf '%s\n' "$resolved_target"
+            return 0
+            ;;
+        *)
+            lc_log "ERROR: ${target} resolves to ${resolved_target}, which escapes ${resolved_root}"
+            return 1
+            ;;
+    esac
+}
+
+# lc_make_state_dirs <dir>...
+lc_make_state_dirs() {
+    local d
+    for d in "$@"; do
+        ( umask 077; mkdir -p "$d" ) || return 1
+        chmod 700 "$d" || return 1
+    done
+}
+
+# lc_build_binds <course_folder> <scratch_root> <job_state> <job_tmp> <ssh_mask>
+#
+# Populates LC_BINDS. The real home is deliberately absent: it is mounted by
+# --home, because --env-file cannot set HOME and Apptainer otherwise derives it
+# from the passwd entry. Binds are kept in an array and expanded quoted at the
+# call site; flattening them into a string has been introduced, corrected, and
+# re-introduced in this app family.
+lc_build_binds() {
+    local course="$1" scratch="$2" job_state="$3" job_tmp="$4" ssh_mask="$5"
+    LC_BINDS=(
+        -B "${course}:${course}"
+        -B "${scratch}:${scratch}"
+        -B "${job_state}:/state"
+        -B "${job_tmp}:/tmp"
+        -B "${ssh_mask}:${HOME}/.ssh"
+    )
+}
