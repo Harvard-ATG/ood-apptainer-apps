@@ -94,6 +94,14 @@ LOG="$FIXTURE_ROOT/session.log"
     echo $! > "$FIXTURE_ROOT/script.pid"
     SCRIPT_PID=$(cat "$FIXTURE_ROOT/script.pid")
     export SCRIPT_PID
+    # after.sh deletes the environment file once startup no longer needs it
+    # (Finding 2), so snapshot it here -- outside $STAGED, unaffected by that
+    # deletion -- while waiting for script.sh to have written it.
+    waited=0
+    while [ ! -s container.env ] && [ "$waited" -lt 100 ]; do
+        sleep 0.1; waited=$((waited + 1))
+    done
+    cp -a container.env "$FIXTURE_ROOT/container.env.snapshot" 2>/dev/null
     # shellcheck disable=SC1090,SC1091  # rendered template sourced at runtime; not resolvable statically
     . ./after.sh > "$FIXTURE_ROOT/after.log" 2>&1
     echo "after_status=$?" >> "$FIXTURE_ROOT/after.log"
@@ -114,13 +122,16 @@ it "script.sh resolved the apptainer executable"
 assert_contains "$(cat "$LOG")" "apptainer="
 
 it "the environment file was created mode 0600"
-assert_file_mode "$STAGED/container.env" 600
+assert_file_mode "$FIXTURE_ROOT/container.env.snapshot" 600
 
 it "the environment file contains no unexpanded variable"
-assert_not_contains "$(cat "$STAGED/container.env")" '$'
+assert_not_contains "$(cat "$FIXTURE_ROOT/container.env.snapshot")" '$'
 
 it "the environment file omits HOME, which --home sets"
-assert_not_contains "$(grep '^HOME=' "$STAGED/container.env" || echo '')" "HOME="
+assert_not_contains "$(grep '^HOME=' "$FIXTURE_ROOT/container.env.snapshot" || echo '')" "HOME="
+
+it "the environment file is deleted once startup no longer needs it"
+assert_failure test -e "$STAGED/container.env"
 
 it "the server recorded its argv inside the container"
 assert_success test -s "$FAKE_JOB_STATE/argv.log"
@@ -144,7 +155,7 @@ it "the generated credential is long enough for the leak assertions to mean anyt
 assert_eq "$(printf '%s' "$PLAINTEXT" | wc -c | tr -d ' ')" "16"
 
 it "the plaintext credential never reached the environment file"
-assert_not_contains "$(cat "$STAGED/container.env")" "$PLAINTEXT"
+assert_not_contains "$(cat "$FIXTURE_ROOT/container.env.snapshot")" "$PLAINTEXT"
 
 it "the hashed credential IS on argv, which is the intended design"
 assert_contains "$(cat "$FAKE_JOB_STATE/argv.log")" "sha1:"

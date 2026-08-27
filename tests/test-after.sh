@@ -39,7 +39,12 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: never disables errexit to hide a failure"
     assert_not_contains "$(cat "$rendered")" 'set +e'
 
-    # Success path: the port opens.
+    # Success path: the port opens. JOBROOT points at a fixture job directory
+    # holding a stand-in container.env, so deletion can be observed on the
+    # real filesystem after the subshell exits.
+    JOBROOT_OK="$TMP/$app-jobroot-ok"
+    mkdir -p "$JOBROOT_OK"
+    : > "$JOBROOT_OK/container.env"
     out=$(
         # shellcheck disable=SC2317,SC2329  # invoked indirectly by the sourced rendered template below
         wait_until_port_used() { return 0; }
@@ -48,7 +53,7 @@ for app in jupyterlab-ai codeserver-ai; do
         # shellcheck disable=SC2317,SC2329  # invoked indirectly by the sourced rendered template below
         pkill() { echo "PKILL_CALLED"; }
         # shellcheck disable=SC2030  # deliberately scoped to this subshell; captured via stdout below
-        export host=node1 port=7123 SCRIPT_PID=99999
+        export host=node1 port=7123 SCRIPT_PID=99999 JOBROOT="$JOBROOT_OK"
         # shellcheck disable=SC1090
         . "$rendered" 2>&1
     )
@@ -58,7 +63,14 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: success path logs discovery"
     assert_contains "$out" "Discovered"
 
-    # Failure path: the port never opens.
+    it "$app: success path deletes the per-job environment file"
+    assert_failure test -e "$JOBROOT_OK/container.env"
+
+    # Failure path: the port never opens. Same JOBROOT/container.env setup,
+    # a separate directory so the two paths cannot mask each other.
+    JOBROOT_FAIL="$TMP/$app-jobroot-fail"
+    mkdir -p "$JOBROOT_FAIL"
+    : > "$JOBROOT_FAIL/container.env"
     out=$(
         # shellcheck disable=SC2317,SC2329  # invoked indirectly by the sourced rendered template below
         wait_until_port_used() { return 1; }
@@ -67,7 +79,7 @@ for app in jupyterlab-ai codeserver-ai; do
         # shellcheck disable=SC2317,SC2329  # invoked indirectly by the sourced rendered template below
         pkill() { echo "PKILL_CALLED $*"; }
         # shellcheck disable=SC2031  # deliberately scoped to this subshell; captured via stdout below
-        export host=node1 port=7123 SCRIPT_PID=99999
+        export host=node1 port=7123 SCRIPT_PID=99999 JOBROOT="$JOBROOT_FAIL"
         # shellcheck disable=SC1090
         . "$rendered" 2>&1
     )
@@ -79,6 +91,9 @@ for app in jupyterlab-ai codeserver-ai; do
 
     it "$app: failure path logs a usable diagnostic"
     assert_contains "$out" "Timed out"
+
+    it "$app: failure path deletes the per-job environment file"
+    assert_failure test -e "$JOBROOT_FAIL/container.env"
 done
 
 finish
