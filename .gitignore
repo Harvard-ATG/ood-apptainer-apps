@@ -1,0 +1,11 @@
+# Reference clones of the existing OOD apps, kept locally for convention
+# lookup. They are separate git repositories and must never be committed.
+.artie/reference_repos/
+
+# Test image cache: multi-hundred-MB Apptainer sandboxes and SIFs.
+tests/.cache/
+
+# Subagent-driven-development scratch workspace.
+.superpowers/
+
+.claude/.cc-writes
