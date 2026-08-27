@@ -13,7 +13,14 @@ RENDER_TMP=$(mktemp -d)
 trap 'rm -rf "$RENDER_TMP"' EXIT
 SUB=tests/fixtures/sample-subapp.yml.erb
 
-# Plain shell files, including the shared library and the in-container launchers.
+LINT_DIRS=()
+for d in ood scripts tests images; do
+    [ -d "$d" ] && LINT_DIRS+=("$d")
+done
+
+# Plain shell files, including the shared library, the in-container launchers,
+# and image recipe files such as versions.env (shellcheck-clean via `-s bash`
+# even though they carry no shebang).
 while IFS= read -r f; do
     it "shellcheck: $f"
     # --source-path=SCRIPTDIR resolves `. lib/assert.sh` relative to the
@@ -28,7 +35,7 @@ while IFS= read -r f; do
     if out=$(shellcheck -s bash -x --source-path=SCRIPTDIR "$f" 2>&1); then _pass; else _fail "$out"; fi
 # tests/.cache holds built Apptainer images, whose .singularity.d/ contains
 # the runtime's own shell scripts. Those are not ours and do not lint clean.
-done < <(find ood scripts tests -name '*.sh' -type f -not -path 'tests/.cache/*' | sort)
+done < <(find "${LINT_DIRS[@]}" \( -name '*.sh' -o -name '*.env' \) -type f -not -path 'tests/.cache/*' | sort)
 
 # ERB shell templates must be rendered before they are valid shell.
 while IFS= read -r f; do
