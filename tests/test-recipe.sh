@@ -146,4 +146,20 @@ assert_contains "$body" "sha256sum"
 it "the recipe removes its staging directory"
 assert_contains "$body" "rm -rf /opt/build"
 
+it "npm installs onto /usr/local, not the unreachable node-resolved prefix"
+# npm's default global prefix resolves from the running node binary's real path,
+# which is under NODE_HOME and never on PATH. Without forcing the prefix, the
+# claude and codex executables npm writes would be unreachable by name.
+assert_contains "$body" "NPM_CONFIG_PREFIX=/usr/local"
+
+it "the manifest never suppresses a CLI's stderr"
+# Suppressing stderr on claude/codex/uv/micromamba --version would discard the
+# diagnostic that a broken install needs to be caught at build time.
+assert_not_contains "$body" "2>/dev/null"
+
+it "the manifest captures each version through a plain assignment, so a broken install trips set -e"
+for var in claude_version codex_version node_version uv_version micromamba_version; do
+    assert_contains "$body" "${var}="
+done
+
 finish

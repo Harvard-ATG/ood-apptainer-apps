@@ -78,6 +78,10 @@ log "node $(node --version), npm $(npm --version)"
 # sources.
 # ---------------------------------------------------------------------------
 log "installing Claude Code ${CLAUDE_CODE_VERSION} and Codex ${CODEX_VERSION}"
+# npm computes its default global prefix from the resolved path of the running
+# node binary, which is under NODE_HOME -- never on PATH. Force the prefix to
+# /usr/local so the claude and codex executables land in /usr/local/bin.
+export NPM_CONFIG_PREFIX=/usr/local
 npm install -g --no-fund --no-audit \
     "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     "@openai/codex@${CODEX_VERSION}"
@@ -116,13 +120,22 @@ install -m 0644 "${BUILD_DIR}/codex/managed_config.toml"         /etc/codex/
 # a session can be traced to its build without rebuilding anything.
 # ---------------------------------------------------------------------------
 log "recording the AI surface manifest"
+# Each version is captured into a variable BEFORE the manifest is assembled, with
+# no stderr suppression. A plain assignment from a failing command substitution
+# trips `set -e` immediately, so a broken CLI install aborts the build loudly
+# instead of being recorded as a blank manifest field.
+claude_version=$(claude --version | head -1)
+codex_version=$(codex --version | head -1)
+node_version=$(node --version)
+uv_version=$(uv --version | head -1)
+micromamba_version=$(micromamba --version | head -1)
 install -d -m 0755 /etc/ood-ai
 {
-    echo "claude_code=$(claude --version 2>/dev/null | head -1)"
-    echo "codex=$(codex --version 2>/dev/null | head -1)"
-    echo "node=$(node --version)"
-    echo "uv=$(uv --version 2>/dev/null | head -1)"
-    echo "micromamba=$(micromamba --version 2>/dev/null | head -1)"
+    echo "claude_code=${claude_version}"
+    echo "codex=${codex_version}"
+    echo "node=${node_version}"
+    echo "uv=${uv_version}"
+    echo "micromamba=${micromamba_version}"
     echo "arch=$(uname -m)"
     for f in /etc/claude-code/*.json /etc/codex/*.toml; do
         echo "sha256:$(sha256sum "$f")"
