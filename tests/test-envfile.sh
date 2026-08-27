@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# SC2016: the probe helpers pass shell snippets to the container as strings, so
+# $HOME and friends MUST stay unexpanded here and expand in the container's shell.
+# Every occurrence in this file is deliberate. This directive must precede every
+# command in the file, so it sits immediately after the shebang.
+# shellcheck disable=SC2016
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
