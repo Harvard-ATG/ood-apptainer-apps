@@ -35,9 +35,9 @@ for app in jupyterlab-ai codeserver-ai; do
     out=$(
         cd "$TMP" || exit 1
         mkdir -p staged && cd staged || exit 1
-        # shellcheck disable=SC2030  # HOME is deliberately scoped to this subshell; captured via stdout below
+        # shellcheck disable=SC2030,SC2031  # HOME is deliberately scoped to this subshell; captured via stdout below
         export HOME=/decoy/home
-        # shellcheck disable=SC2030  # host is deliberately scoped to this subshell; captured via stdout below
+        # shellcheck disable=SC2030,SC2031  # host is deliberately scoped to this subshell; captured via stdout below
         export host="compute-node-1"
         # shellcheck disable=SC1090,SC1091  # dynamically created stub sourced at runtime; not resolvable statically
         . "$TMP/ood-stubs.sh"
@@ -83,7 +83,7 @@ assert_contains "$(cat "$jl")" 'MY_JUP_PASSWD="sha1:'
 it "jupyterlab: base URL matches the OOD node proxy shape"
 out=$(
     cd "$TMP/staged" || exit 1
-    # shellcheck disable=SC2031  # HOME/host are deliberately scoped to this subshell; captured via stdout below
+    # shellcheck disable=SC2030,SC2031  # HOME/host are deliberately scoped to this subshell; captured via stdout below
     export HOME=/decoy/home host="compute-node-1"
     # shellcheck disable=SC1090,SC1091  # dynamically created stub sourced at runtime; not resolvable statically
     . "$TMP/ood-stubs.sh"
@@ -95,5 +95,28 @@ assert_eq "$out" "/node/compute-node-1/7123/"
 
 it "codeserver: does not define Jupyter-specific variables"
 assert_not_contains "$(cat "$TMP/codeserver-ai-before.sh")" "MY_JUP_"
+
+# Without a guard, a failing openssl leaves PASSWORD_SHA1 empty, so
+# MY_JUP_PASSWD becomes "sha1:${SALT}:" -- the server still starts and
+# readiness still succeeds, and every login is then silently rejected with no
+# diagnostic. Assert the guard actually fires.
+out=$(
+    cd "$TMP/staged" || exit 1
+    # shellcheck disable=SC2030,SC2031  # HOME/host are deliberately scoped to this subshell; captured via stdout below
+    export HOME=/decoy/home host="compute-node-1"
+    # shellcheck disable=SC1090,SC1091  # dynamically created stub sourced at runtime; not resolvable statically
+    . "$TMP/ood-stubs.sh"
+    # shellcheck disable=SC2317,SC2329  # invoked indirectly by the sourced rendered template below
+    openssl() { return 1; }
+    # shellcheck disable=SC1090,SC1091  # rendered template sourced at runtime; not resolvable statically
+    . "$jl" 2>&1
+)
+status=$?
+
+it "jupyterlab: exits nonzero when openssl cannot produce the password hash"
+assert_eq "$status" "1"
+
+it "jupyterlab: logs a diagnostic when openssl fails"
+assert_contains "$out" "ERROR"
 
 finish

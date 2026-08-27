@@ -45,6 +45,11 @@ export password
 
 SALT="$(create_passwd 16)"
 PASSWORD_SHA1="$(echo -n "${password}${SALT}" | openssl dgst -sha1 | awk '{print $NF}')"
+# An unchecked failure here leaves PASSWORD_SHA1 empty, so MY_JUP_PASSWD
+# becomes "sha1:${SALT}:" -- the server still starts, the port still opens,
+# readiness still reports success, and every login is then silently rejected
+# with no diagnostic. Fail loudly here instead.
+[ -n "$PASSWORD_SHA1" ] || { log "ERROR: openssl dgst -sha1 produced no output; cannot compute the login hash"; exit 1; }
 
 export MY_JUP_PORT="${port}"
 export MY_JUP_PASSWD="sha1:${SALT}:${PASSWORD_SHA1}"
