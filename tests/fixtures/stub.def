@@ -20,7 +20,7 @@ printf '%s\n' "$0" "$@" > "$STATE_DIR/argv.log"
 printf '%s\n' "$$" > "$STATE_DIR/server.pid"
 printf '%s\n' "$PPID" > "$STATE_DIR/server.ppid"
 env > "$STATE_DIR/env.log"
-: "${STUB_PORT:=8888}"
+: "${STUB_PORT:=${MY_JUP_PORT:-${CODE_SERVER_PORT:-8888}}}"
 while :; do
     nc -l -p "$STUB_PORT" >/dev/null 2>&1 || sleep 1
 done
