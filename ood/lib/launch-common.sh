@@ -188,3 +188,29 @@ lc_build_binds() {
         -B "${ssh_mask}:${HOME}/.ssh"
     )
 }
+
+# lc_run <apptainer_bin> <image> <env_file> <inner_cmd>...
+#
+# Runs Apptainer as an ordinary child process. It is deliberately NOT exec'd:
+# OOD's basic Batch Connect template backgrounds script.sh, records its pid as
+# SCRIPT_PID, and after.sh reaps the session with pkill -P "${SCRIPT_PID}" when
+# startup fails. Replacing the shell would break that contract. Signal delivery
+# to the server is handled instead by the in-container launcher, which execs the
+# server so it becomes the container's first process.
+#
+# LC_BINDS must be populated by lc_build_binds first.
+lc_run() {
+    local bin="$1" image="$2" env_file="$3"
+    shift 3
+
+    lc_sterile_prefix
+
+    "${LC_STERILE[@]}" "$bin" exec \
+        --containall \
+        --cleanenv \
+        --no-mount home,cwd,tmp,hostfs,bind-paths \
+        --home "${HOME}:${HOME}" \
+        --env-file "$env_file" \
+        "${LC_BINDS[@]}" \
+        "$image" "$@"
+}
