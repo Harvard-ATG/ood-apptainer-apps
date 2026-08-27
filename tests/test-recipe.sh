@@ -114,4 +114,36 @@ done
 it "deny_read uses no ./-relative entries, which the schema rejects"
 assert_not_contains "$dr" "./"
 
+RECIPE="$COMMON/install-ai-agents.sh"
+
+it "the recipe exists and is executable"
+assert_success test -x "$RECIPE"
+
+it "the recipe stages from /opt/build, never /tmp"
+# Apptainer bind-mounts the host /tmp over the container's during %post, so
+# anything staged there is invisible to the build.
+body=$(cat "$RECIPE")
+assert_contains "$body" "/opt/build"
+assert_not_contains "$body" "/tmp/build"
+
+it "the recipe fails on any error rather than shipping a partial image"
+assert_contains "$body" "set -euo pipefail"
+
+it "the recipe hardcodes no version"
+for v in 2.1.248 0.150.1 4.135.0 24.20.0 0.12.7; do
+    assert_not_contains "$body" "$v"
+done
+
+it "the recipe reads every version from versions.env"
+assert_contains "$body" "versions.env"
+
+it "the recipe detects architecture rather than assuming one"
+assert_contains "$body" "uname -m"
+
+it "the recipe verifies what it downloaded before trusting it"
+assert_contains "$body" "sha256sum"
+
+it "the recipe removes its staging directory"
+assert_contains "$body" "rm -rf /opt/build"
+
 finish
