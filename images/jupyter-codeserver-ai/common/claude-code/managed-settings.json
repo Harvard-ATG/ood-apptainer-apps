@@ -1,0 +1,24 @@
+{
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": false,
+    "bwrapPath": "/usr/bin/bwrap",
+    "socatPath": "/usr/bin/socat",
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.config/gh",
+        "~/.config/ood-huit/codex",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.netrc"
+      ]
+    }
+  },
+  "permissions": {
+    "disableBypassPermissionsMode": "disable"
+  }
+}

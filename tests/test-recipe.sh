@@ -44,4 +44,38 @@ it "no base image is pinned to a floating tag"
 assert_not_contains "$(cat "$COMMON/versions.env")" ":latest"
 assert_not_contains "$(cat "$COMMON/versions.env")" "=latest"
 
+CC="$COMMON/claude-code"
+
+it "managed-settings.json exists"
+assert_success test -f "$CC/managed-settings.json"
+
+it "managed-settings.json is valid JSON"
+assert_success python3 -c "import json;json.load(open('$CC/managed-settings.json'))"
+
+it "managed-mcp.json exists and is valid JSON"
+assert_success python3 -c "import json;json.load(open('$CC/managed-mcp.json'))"
+
+it "the autoupdater is disabled through env, which merges per variable"
+assert_eq "$(python3 -c "import json;print(json.load(open('$CC/managed-settings.json'))['env']['DISABLE_AUTOUPDATER'])")" "1"
+
+it "sandbox helper binaries are pinned to absolute paths"
+sb=$(python3 -c "import json;s=json.load(open('$CC/managed-settings.json'))['sandbox'];print(s['bwrapPath'],s['socatPath'])")
+assert_contains "$sb" "/usr/bin/bwrap"
+assert_contains "$sb" "/usr/bin/socat"
+
+it "intent is recorded for the keys that are not cross-source"
+s=$(cat "$CC/managed-settings.json")
+assert_contains "$s" "failIfUnavailable"
+assert_contains "$s" "disableBypassPermissionsMode"
+
+it "no credential or token appears in the policy files"
+for f in "$CC"/*.json; do
+    assert_not_contains "$(tr '[:upper:]' '[:lower:]' < "$f")" "sk-"
+done
+
+it "filesystem denyRead mirrors Codex's asymmetry: denies the OTHER agent's credentials"
+dr=$(python3 -c "import json;print(' '.join(json.load(open('$CC/managed-settings.json'))['sandbox']['filesystem']['denyRead']))")
+assert_contains "$dr" "ood-huit/codex"
+assert_not_contains "$dr" "ood-huit/claude"
+
 finish
