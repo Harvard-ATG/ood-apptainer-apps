@@ -1,0 +1,28 @@
+# Sourced by OOD after script.sh has been forked. Waits for the server to
+# accept connections and fails loudly when it does not.
+
+# shellcheck disable=SC2154
+# SC2154: this file is a FRAGMENT that OOD sources into its generated job script,
+# not a standalone program. $host and $port come from the Batch Connect basic
+# template; $password and $JOBROOT come from before.sh.erb,
+# which OOD sources into the same shell earlier. shellcheck cannot see either.
+this_script="template/after.sh.erb"
+
+log() {
+    echo -e "[$(date -Iseconds)][${this_script}] $1"
+}
+
+# 600 seconds is the family standard and accounts for cold shared-filesystem
+# reads. Raising it is not a remedy for a mount failure: 900 seconds was tried
+# in the RStudio app, recorded as ineffective, and reverted. If sessions time
+# out here, look at which image root was selected in the script.sh log.
+log "Waiting for code-server to open port ${port}..."
+if wait_until_port_used "${host}:${port}" 600; then
+  log "Discovered code-server listening on port ${port}"
+else
+  log "Timed out waiting for code-server to open port ${port}"
+  log "Check the session output log for the selected image root and Apptainer errors."
+  pkill -P "${SCRIPT_PID}"
+  clean_up 1
+fi
+sleep 2
