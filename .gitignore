@@ -10,8 +10,3 @@ tests/.cache/
 
 .claude/.cc-writes
 
-# Stray installer downloads. Miniforge3-Linux-aarch64.sh is ~120MB; committing
-# it would put it in history permanently. Ignored rather than deleted - they are
-# not ours to remove.
-/Miniforge3-*.sh
-/micromamba.sh
