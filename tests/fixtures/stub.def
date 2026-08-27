@@ -1,0 +1,24 @@
+Bootstrap: docker
+From: alpine:3.20
+
+%post -c /bin/sh
+  echo stub > /opt/marker
+
+  # Shim standing in for a real server. Records argv and PID, then holds a
+  # listening socket so OOD readiness checks succeed.
+  cat > /usr/local/bin/_stub-server <<'SHIM'
+#!/bin/sh
+# $0 is the name the launcher invoked (jupyter or code-server).
+: "${STATE_DIR:=/state}"
+mkdir -p "$STATE_DIR"
+printf '%s\n' "$0" "$@" > "$STATE_DIR/argv.log"
+printf '%s\n' "$$" > "$STATE_DIR/server.pid"
+env > "$STATE_DIR/env.log"
+: "${STUB_PORT:=8888}"
+while :; do
+    nc -l -p "$STUB_PORT" >/dev/null 2>&1 || sleep 1
+done
+SHIM
+  chmod 755 /usr/local/bin/_stub-server
+  ln -s /usr/local/bin/_stub-server /usr/local/bin/jupyter
+  ln -s /usr/local/bin/_stub-server /usr/local/bin/code-server
