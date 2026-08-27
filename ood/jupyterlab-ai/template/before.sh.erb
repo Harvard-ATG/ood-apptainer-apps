@@ -7,11 +7,6 @@
 # OOD requires these variables so the user can connect back:
 #   $host (already defined), $port, $password
 
-# shellcheck disable=SC2154
-# SC2154: this file is a FRAGMENT that OOD sources into its generated job script,
-# not a standalone program. $host and $port come from the Batch Connect basic
-# template; $password, $JOBROOT and the MY_JUP_* values come from before.sh.erb,
-# which OOD sources into the same shell earlier. shellcheck cannot see either.
 this_script="template/before.sh.erb"
 
 log() {
