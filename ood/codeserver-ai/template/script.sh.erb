@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Host-side launch. Forked by OOD as a child process, NOT exec'd: OOD records
+# this script's pid as SCRIPT_PID and after.sh reaps with pkill -P.
+
+# shellcheck disable=SC2154,SC1091
+# SC2154: $port, $password and the MY_JUP_* values are provided by before.sh.erb,
+# which OOD sources into the same shell before running this script. shellcheck
+# lints this file in isolation and cannot see them.
+# SC1091: the shared library is sourced from ${JOBROOT}/lib/, a path that exists
+# only in the staged session directory at run time, so it can never resolve at lint
+# time. The canonical copy is linted directly as ood/lib/launch-common.sh.
+
+set -uo pipefail
+
+this_script="template/script.sh.erb"
+
+log() {
+    echo -e "[$(date -Iseconds)][${this_script}] $1"
+}
+
+# shellcheck source=../../lib/launch-common.sh
+. "${JOBROOT}/lib/launch-common.sh"
+
+log "starting; HOME=${HOME}"
+cd "${HOME}" || exit 1
+
+IMAGE_FILE="<%= context.imagefile %>"
+COURSE_FOLDER="<%= context.course_folder %>"
+ENVIRONMENT_ROOT_RAW="<%= context.environment_root %>"
+
+ENVIRONMENT_ROOT=$(lc_validate_under "${ENVIRONMENT_ROOT_RAW}" "${COURSE_FOLDER}") || exit 1
+COURSE_ENV=$(lc_validate_under "${ENVIRONMENT_ROOT}/default" "${COURSE_FOLDER}") || exit 1
+
+if [ ! -x "${COURSE_ENV}/bin/python" ]; then
+    log "ERROR: no executable interpreter at ${COURSE_ENV}/bin/python"
+    exit 1
+fi
+log "course environment=${COURSE_ENV}"
+
+# Overridable so the test suite can point the state layout at a fixture
+# instead of the real /scratch. The default is the spec's State layout value.
+SCRATCH_ROOT="${OOD_AI_SCRATCH_ROOT:-/scratch/${USER}/ood/jupyter-codeserver-ai}"
+JOB_STATE="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/state"
+JOB_TMP="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/tmp"
+SSH_MASK="${JOB_STATE}/ssh-mask"
+
+lc_make_state_dirs \
+    "${SCRATCH_ROOT}/workspaces" \
+    "${SCRATCH_ROOT}/cache/xdg" \
+    "${SCRATCH_ROOT}/cache/mamba" \
+    "${SCRATCH_ROOT}/cache/uv" \
+    "${JOB_STATE}/code-server" \
+    "${JOB_STATE}/xdg/config" \
+    "${JOB_STATE}/xdg/data" \
+    "${JOB_TMP}" \
+    "${SSH_MASK}" \
+    "${HOME}/.config/ood-huit/claude" \
+    "${HOME}/.config/ood-huit/codex" \
+    "${HOME}/.config/gh" || { log "ERROR: could not create state directories"; exit 1; }
+
+ENV_FILE="${JOBROOT}/container.env"
+lc_write_env_file "${ENV_FILE}" \
+    "ENVIRONMENT_ROOT=${ENVIRONMENT_ROOT}" \
+    "COURSE_ENV=${COURSE_ENV}" \
+    "CLAUDE_CONFIG_DIR=${HOME}/.config/ood-huit/claude" \
+    "CODEX_HOME=${HOME}/.config/ood-huit/codex" \
+    "GH_CONFIG_DIR=${HOME}/.config/gh" \
+    "DISABLE_AUTOUPDATER=1" \
+    "XDG_CONFIG_HOME=/state/xdg/config" \
+    "XDG_DATA_HOME=/state/xdg/data" \
+    "XDG_CACHE_HOME=${SCRATCH_ROOT}/cache/xdg" \
+    "MAMBA_ROOT_PREFIX=${SCRATCH_ROOT}/cache/mamba" \
+    "UV_CACHE_DIR=${SCRATCH_ROOT}/cache/uv" \
+    "PYTHONNOUSERSITE=1" \
+    "PATH=/usr/local/bin:/usr/bin:/bin" \
+    "CODE_SERVER_PORT=${port}" \
+    "PASSWORD=${password}" \
+    || { log "ERROR: could not write the container environment file"; exit 1; }
+
+CONTAINER_IMAGE=$(lc_select_image "${IMAGE_FILE}") || exit 1
+APPTAINER_BIN=$(lc_apptainer_bin) || exit 1
+log "apptainer=${APPTAINER_BIN}"
+
+lc_build_binds "${COURSE_FOLDER}" "${SCRATCH_ROOT}" "${JOB_STATE}" "${JOB_TMP}" "${SSH_MASK}"
+log "binds=${LC_BINDS[*]}"
+
+log "launching code-server"
+lc_run "${APPTAINER_BIN}" "${CONTAINER_IMAGE}" "${ENV_FILE}" "${JOBROOT}/codeserver.script.sh"
+status=$?
+log "apptainer exited with status ${status}"
+exit "${status}"
