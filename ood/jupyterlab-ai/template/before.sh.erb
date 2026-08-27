@@ -1,0 +1,61 @@
+# Sourced by OOD into the batch job script before script.sh is forked.
+#
+# OOD provides these helpers:
+#   find_port [host] [low] [high]   - an available port
+#   create_passwd [length]          - a random alphanumeric credential
+#
+# OOD requires these variables so the user can connect back:
+#   $host (already defined), $port, $password
+
+# shellcheck disable=SC2154
+# SC2154: this file is a FRAGMENT that OOD sources into its generated job script,
+# not a standalone program. $host and $port come from the Batch Connect basic
+# template; $password, $JOBROOT and the MY_JUP_* values come from before.sh.erb,
+# which OOD sources into the same shell earlier. shellcheck cannot see either.
+this_script="template/before.sh.erb"
+
+log() {
+    echo -e "[$(date -Iseconds)][${this_script}] $1"
+}
+
+# The Slurm job environment on this cluster delivers HOME unset or wrong often
+# enough that every app in this family reasserts it here, before anything reads
+# it. id -nu is used rather than $USER because it does not depend on the
+# inherited environment. This fixes the host-side value only; the container's
+# HOME is set separately by --home in script.sh.erb, because --env-file cannot
+# set HOME.
+log "original HOME=$HOME"
+log "user=$(id -nu)"
+# Assigned then exported separately: `export HOME="$(id -nu ...)"` would mask the
+# command's exit status, so a failure would silently yield /shared/home/ (SC2155).
+HOME="/shared/home/$(id -nu)"
+export HOME
+log "new HOME=$HOME"
+
+# Export the module function if the login shell defined one.
+[[ $(type -t module) == "function" ]] && export -f module
+
+# Explicitly export every value consumed downstream rather than relying on the
+# Batch Connect template to export it.
+export host="${host}"
+port=$(find_port "${host}" 7000 11000)
+export port
+log "selected port=${port}"
+
+# The plaintext credential is what view.html.erb posts to the server's login
+# endpoint. Only the hash is handed to the server, so the plaintext never
+# reaches a command line or the container.
+password="$(create_passwd 16)"
+export password
+
+SALT="$(create_passwd 16)"
+PASSWORD_SHA1="$(echo -n "${password}${SALT}" | openssl dgst -sha1 | awk '{print $NF}')"
+
+export MY_JUP_PORT="${port}"
+export MY_JUP_PASSWD="sha1:${SALT}:${PASSWORD_SHA1}"
+export MY_JUP_BASEURL="/node/${host}/${port}/"
+
+# The staged session directory, which is where script.sh finds the shared
+# library and the in-container launcher. Captured before script.sh cds to HOME.
+export JOBROOT="$PWD"
+log "JOBROOT=${JOBROOT}"

@@ -1,0 +1,46 @@
+# Sourced by OOD into the batch job script before script.sh is forked.
+#
+# OOD provides these helpers:
+#   find_port [host] [low] [high]   - an available port
+#   create_passwd [length]          - a random alphanumeric credential
+#
+# OOD requires these variables so the user can connect back:
+#   $host (already defined), $port, $password
+
+# shellcheck disable=SC2154
+# SC2154: this file is a FRAGMENT that OOD sources into its generated job script,
+# not a standalone program. $host and $port come from the Batch Connect basic
+# template; $password and $JOBROOT come from before.sh.erb,
+# which OOD sources into the same shell earlier. shellcheck cannot see either.
+this_script="template/before.sh.erb"
+
+log() {
+    echo -e "[$(date -Iseconds)][${this_script}] $1"
+}
+
+# See the JupyterLab app's before.sh.erb: the batch job environment delivers
+# HOME unset or wrong often enough that it is reasserted here, before anything
+# reads it. The container's HOME is set separately by --home, because
+# --env-file cannot set HOME.
+log "original HOME=$HOME"
+log "user=$(id -nu)"
+# Assigned then exported separately: `export HOME="$(id -nu ...)"` would mask the
+# command's exit status, so a failure would silently yield /shared/home/ (SC2155).
+HOME="/shared/home/$(id -nu)"
+export HOME
+log "new HOME=$HOME"
+
+[[ $(type -t module) == "function" ]] && export -f module
+
+export host="${host}"
+port=$(find_port "${host}" 7000 11000)
+export port
+log "selected port=${port}"
+
+# code-server compares against this value directly, so the plaintext reaches
+# the container through the mode-0600 environment file and never through argv.
+password="$(create_passwd 16)"
+export password
+
+export JOBROOT="$PWD"
+log "JOBROOT=${JOBROOT}"
