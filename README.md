@@ -4,8 +4,8 @@ Apptainer-based Open OnDemand interactive apps with preinstalled AI coding
 agents, for Harvard ATG. Two parent apps — JupyterLab and code-server — serve
 per-course sub-apps.
 
-**Design:** maintained by Harvard ATG outside this repository
-**Implementation plans:** maintained by Harvard ATG outside this repository
+The design specification and implementation plans are maintained by Harvard ATG
+outside this repository and are not tracked here.
 
 These apps carry a wider blast radius than the standard ones: code-server
 workspace trust is disabled, the student's real home is mounted read-write, and
@@ -30,8 +30,7 @@ host-side launch scripts, the in-container launchers, and the test suite that
 verifies the containment contract end to end against a stub image. The
 Apptainer image definitions (`images/`) and the OOD-facing app metadata and
 course sub-apps (`form.yml`, `submit.yml.erb`, `local/`) do not exist yet —
-they land in Plans 2 and 3, per
-the implementation plan maintained outside this repository.
+they land in later stages of the build-out.
 
 ## Tests
 

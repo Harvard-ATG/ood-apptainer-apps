@@ -1,6 +1,8 @@
-# Reference clones of the existing OOD apps, kept locally for convention
-# lookup. They are separate git repositories and must never be committed.
-.artie/reference_repos/
+# Local working directory: design docs, plans, course requests, preflight
+# artifacts, and reference clones of the sibling OOD apps. Deliberately not
+# tracked -- these are working artifacts, and the reference clones are separate
+# git repositories besides.
+.artie/
 
 # Test image cache: multi-hundred-MB Apptainer sandboxes and SIFs.
 tests/.cache/
