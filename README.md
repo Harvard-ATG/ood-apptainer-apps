@@ -15,14 +15,23 @@ data.
 
 ## Layout
 
-| Path | Contents |
-|---|---|
-| `ood/lib/launch-common.sh` | Canonical shared containment logic. **Edit here.** |
-| `ood/<app>-ai/template/lib/launch-common.sh` | Vendored copy staged by OOD. Generated — do not edit. |
-| `ood/<app>-ai/` | Parent OOD app: form, submit, templates, sub-apps under `local/` |
-| `images/` | Apptainer definition files and initial course environment specs |
-| `scripts/` | Build, provisioning, and maintenance scripts |
-| `tests/` | Verification suite |
+| Path | Contents | Status |
+|---|---|---|
+| `ood/lib/launch-common.sh` | Canonical shared containment logic. **Edit here.** | present |
+| `ood/<app>-ai/template/lib/launch-common.sh` | Vendored copy staged by OOD. Generated — do not edit. | present |
+| `ood/<app>-ai/template/` | Host-side launch scripts (`before`/`script`/`after`) and in-container launchers | present |
+| `ood/<app>-ai/` (`form.yml`, `submit.yml.erb`, sub-apps under `local/`) | Parent OOD app metadata and per-course sub-apps | forthcoming — Plan 3 |
+| `images/` | Apptainer definition files and initial course environment specs | forthcoming — Plan 2 |
+| `scripts/` | Build, provisioning, and maintenance scripts | present, growing — image build scripts arrive in Plan 2 |
+| `tests/` | Verification suite | present |
+
+This repository currently holds Plan 1: the shared containment logic, the
+host-side launch scripts, the in-container launchers, and the test suite that
+verifies the containment contract end to end against a stub image. The
+Apptainer image definitions (`images/`) and the OOD-facing app metadata and
+course sub-apps (`form.yml`, `submit.yml.erb`, `local/`) do not exist yet —
+they land in Plans 2 and 3, per
+the implementation plan maintained outside this repository.
 
 ## Tests
 

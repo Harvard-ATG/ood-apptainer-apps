@@ -49,7 +49,14 @@ chmod 755 "$STAGED"/*.sh
 # Stand-ins for the helpers OOD injects.
 cat > "$STAGED/ood-stubs.sh" <<'STUBS'
 find_port() { echo 7231; }
-create_passwd() { head -c "${1:-32}" /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c "${1:-32}"; }
+create_passwd() {
+    # Filter a CONTINUOUS stream, then truncate. Truncating /dev/urandom to N
+    # bytes first and filtering afterwards discards ~60% of them, yielding 5-12
+    # characters instead of N -- which makes the credential-isolation assertions
+    # flaky, because a 2-character secret collides by accident with the hex and
+    # paths in an environment dump.
+    LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "${1:-32}"
+}
 wait_until_port_used() {
     # Deliberately ignores the caller's timeout. after.sh passes the real 600s
     # budget, which would make a failing readiness check sleep for ten minutes.
@@ -94,11 +101,11 @@ LOG="$FIXTURE_ROOT/session.log"
 SCRIPT_PID=$(cat "$FIXTURE_ROOT/script.pid" 2>/dev/null || echo "")
 
 it "script.sh selected an image root and logged it"
-# Both lc_select_image paths name the root they chose, but only the fast path
-# contains the words "image root" -- the fallback says "no fast copy at ...;
-# using ...". The e2e fixture has no fast copy, so assert on the root path
-# itself, which both messages carry.
-assert_contains "$(cat "$LOG")" "apptainerImages"
+# The e2e fixture has no fast copy, so lc_select_image always falls back to
+# the canonical root. Assert on that root specifically -- "apptainerImages"
+# alone would pass regardless of which branch fired, since both roots
+# contain that substring.
+assert_contains "$(cat "$LOG")" "$FAKE_IMAGE_ROOT_CANONICAL"
 
 it "script.sh validated and logged the course environment"
 assert_contains "$(cat "$LOG")" "course environment=$FAKE_ENV_ROOT/default"
@@ -130,6 +137,11 @@ assert_contains "$(cat "$FIXTURE_ROOT/after.log")" "Discovered"
 it "the plaintext credential never reached the server's argv"
 PLAINTEXT=$(cat "$FIXTURE_ROOT/plaintext-password" 2>/dev/null || echo "__missing__")
 assert_not_contains "$(cat "$FAKE_JOB_STATE/argv.log")" "$PLAINTEXT"
+
+it "the generated credential is long enough for the leak assertions to mean anything"
+# A short credential collides by accident with hex and paths in an environment
+# dump, producing false failures. Guard the stub rather than trusting it.
+assert_eq "$(printf '%s' "$PLAINTEXT" | wc -c | tr -d ' ')" "16"
 
 it "the plaintext credential never reached the environment file"
 assert_not_contains "$(cat "$STAGED/container.env")" "$PLAINTEXT"
