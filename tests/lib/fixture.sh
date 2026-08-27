@@ -69,9 +69,34 @@ fixture_image() {
         rm -rf "$target"
         # Build to /tmp to work around xattr issues on bind mounts
         local tmpbuild="/tmp/stub-build-$$"
+        local build_out build_err
         case "$target" in
-            *.sif) apptainer build --fakeroot "$tmpbuild.sif" "$def" >/dev/null 2>&1 && mv "$tmpbuild.sif" "$target" ;;
-            *)     apptainer build --fakeroot --sandbox "$tmpbuild.dir" "$def" >/dev/null 2>&1 && mv "$tmpbuild.dir" "$target" ;;
+            *.sif)
+                build_out=$(apptainer build --fakeroot "$tmpbuild.sif" "$def" 2>&1) || {
+                    printf 'fixture_image: apptainer build failed: %s\n' "$build_out" >&2
+                    rm -rf "$tmpbuild.sif"
+                    return 1
+                }
+                mv "$tmpbuild.sif" "$target" || {
+                    build_err=$?
+                    printf 'fixture_image: mv %s to %s failed: %s\n' "$tmpbuild.sif" "$target" "$build_err" >&2
+                    rm -rf "$tmpbuild.sif"
+                    return "$build_err"
+                }
+                ;;
+            *)
+                build_out=$(apptainer build --fakeroot --sandbox "$tmpbuild.dir" "$def" 2>&1) || {
+                    printf 'fixture_image: apptainer build failed: %s\n' "$build_out" >&2
+                    rm -rf "$tmpbuild.dir"
+                    return 1
+                }
+                mv "$tmpbuild.dir" "$target" || {
+                    build_err=$?
+                    printf 'fixture_image: mv %s to %s failed: %s\n' "$tmpbuild.dir" "$target" "$build_err" >&2
+                    rm -rf "$tmpbuild.dir"
+                    return "$build_err"
+                }
+                ;;
         esac
     fi
 

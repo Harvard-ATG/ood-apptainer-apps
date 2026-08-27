@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs every test-*.sh in this directory. Exits nonzero if any suite fails.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 
 failed=0
 for suite in test-*.sh; do

@@ -13,6 +13,7 @@ From: alpine:3.20
 mkdir -p "$STATE_DIR"
 printf '%s\n' "$0" "$@" > "$STATE_DIR/argv.log"
 printf '%s\n' "$$" > "$STATE_DIR/server.pid"
+printf '%s\n' "$PPID" > "$STATE_DIR/server.ppid"
 env > "$STATE_DIR/env.log"
 : "${STUB_PORT:=8888}"
 while :; do

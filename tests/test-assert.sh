@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests the assertion library itself, including that failures are detected.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
 . lib/assert.sh
 
