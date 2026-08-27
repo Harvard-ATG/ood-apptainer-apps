@@ -1,0 +1,10 @@
+# Codex managed defaults. Unlike requirements.toml these are user-overridable
+# until restart, so nothing security-relevant belongs here -- anything that must
+# hold goes in requirements.toml.
+#
+# Deliberately does NOT set check_for_update_on_startup: the requester's
+# requirement to disable update checks is enforced in requirements.toml, and
+# duplicating it here would suggest this file carries the guarantee.
+
+[tui]
+notifications = false

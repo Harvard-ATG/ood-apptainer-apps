@@ -78,4 +78,40 @@ dr=$(python3 -c "import json;print(' '.join(json.load(open('$CC/managed-settings
 assert_contains "$dr" "ood-huit/codex"
 assert_not_contains "$dr" "ood-huit/claude"
 
+CX="$COMMON/codex"
+
+it "requirements.toml exists and parses"
+assert_success python3 -c "import tomllib;tomllib.load(open('$CX/requirements.toml','rb'))"
+
+it "managed_config.toml exists and parses"
+assert_success python3 -c "import tomllib;tomllib.load(open('$CX/managed_config.toml','rb'))"
+
+it "update checks are disabled in the ENFORCED file, not merely the defaults"
+assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirements.toml','rb'))['check_for_update_on_startup'])")" "False"
+
+it "allowed_permission_profiles is a table, not an array"
+assert_eq "$(python3 -c "import tomllib;print(type(tomllib.load(open('$CX/requirements.toml','rb'))['allowed_permission_profiles']).__name__)")" "dict"
+
+it "full access is denied by omission"
+prof=$(python3 -c "import tomllib;print(sorted(tomllib.load(open('$CX/requirements.toml','rb'))['allowed_permission_profiles']))")
+assert_not_contains "$prof" "danger-full-access"
+
+it "managed hooks are required"
+assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirements.toml','rb'))['allow_managed_hooks_only'])")" "True"
+
+it "plugins are disabled"
+assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirements.toml','rb'))['features']['plugins'])")" "False"
+
+it "an explicit MCP allowlist is present and empty"
+assert_eq "$(python3 -c "import tomllib;print(len(tomllib.load(open('$CX/requirements.toml','rb'))['mcp_servers']))")" "0"
+
+it "deny_read covers ssh, the GitHub token and the other agent's credential path"
+dr=$(python3 -c "import tomllib;print(' '.join(tomllib.load(open('$CX/requirements.toml','rb'))['permissions']['filesystem']['deny_read']))")
+for p in ".ssh" "gh" "ood-huit/claude"; do
+    assert_contains "$dr" "$p"
+done
+
+it "deny_read uses no ./-relative entries, which the schema rejects"
+assert_not_contains "$dr" "./"
+
 finish

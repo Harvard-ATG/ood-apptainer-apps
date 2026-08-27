@@ -1,0 +1,57 @@
+# Codex enforced policy. Validated against Codex 0.150.1; see common/versions.env.
+#
+# Requirements are the ENFORCED tier. Values here cannot be weakened by a user's
+# config.toml, profile files, or CLI overrides -- when a value conflicts, the
+# client falls back to a compatible one and tells the user.
+#
+# Codex 0.137.0 and earlier IGNORE allowed_permission_profiles and managed
+# default_permissions. A slip below the pinned version therefore removes these
+# restrictions rather than degrading them, which is why the version floor in
+# versions.env is load-bearing.
+
+# Disable automatic update checks. The requester requires this, so it belongs in
+# the enforced file rather than in managed_config.toml, where a user could
+# override it until restart. This is the CLI control; features.in_app_updates is
+# the ChatGPT desktop app's updater and is unrelated.
+check_for_update_on_startup = false
+
+# Managed hooks only: a user cannot introduce lifecycle hooks of their own.
+allow_managed_hooks_only = true
+
+# Approval policies. "never" is omitted, so it is denied.
+allowed_approval_policies = ["untrusted", "on-request"]
+
+# The default profile every session starts in.
+default_permissions = ":workspace"
+
+# The table is the COMPLETE allowlist. Anything omitted is denied, including
+# built-ins added in future Codex versions -- so a future ":danger-something"
+# cannot appear by default.
+[allowed_permission_profiles]
+":read-only" = true
+":workspace" = true
+# ":danger-full-access" is omitted, so it is denied.
+
+# Admin-enforced read denials. Users cannot weaken these with local config, and
+# their presence makes the runtime refuse full-access permissions so it can
+# enforce them. Paths are ~-relative; ./-relative entries are rejected by the
+# schema.
+#
+# These cover the OTHER agent's credentials and the GitHub token. They do not
+# deny Codex its own credential directory, which it must read to stay logged in.
+[permissions.filesystem]
+deny_read = [
+  "~/.ssh",
+  "~/.config/gh",
+  "~/.config/ood-huit/claude",
+  "~/.aws",
+  "~/.gnupg",
+  "~/.netrc",
+]
+
+[features]
+plugins = false
+
+# An explicit empty allowlist disables unapproved MCP servers. Present and empty
+# is a policy; absent would be unconstrained.
+[mcp_servers]
