@@ -57,3 +57,77 @@ lc_select_image() {
 
     printf '%s\n' "$canonical"
 }
+
+# lc_write_env_file <path> <KEY=VALUE>...
+#
+# Apptainer reads --env-file lines literally: there is no shell expansion. A
+# value containing '$' therefore reaches the container unexpanded, which is
+# always a bug, so it is rejected here rather than debugged later. Created under
+# umask 077 in a subshell so the file is never briefly world-readable.
+lc_write_env_file() {
+    local path="$1"
+    shift
+
+    local kv
+    for kv in "$@"; do
+        case "$kv" in
+            *'$'*)
+                lc_log "ERROR: environment value is not expanded: ${kv%%=*}=... (env files are literal)"
+                return 1
+                ;;
+            *$'\n'*)
+                # NOT *"$(printf '\n')"*: command substitution strips trailing
+                # newlines, making that pattern *""* -- which matches every input
+                # and would reject every call.
+                lc_log "ERROR: environment value contains a newline: ${kv%%=*}"
+                return 1
+                ;;
+        esac
+    done
+
+    ( umask 077; : > "$path" ) || return 1
+    for kv in "$@"; do
+        printf '%s\n' "$kv" >> "$path"
+    done
+    chmod 600 "$path"
+}
+
+# lc_apptainer_bin
+#
+# Echoes the absolute path to the centrally managed Apptainer executable. Spack
+# is sourced only to locate it; the resolved path is then invoked directly, so
+# nothing downstream depends on an activated Spack environment.
+lc_apptainer_bin() {
+    if [ -n "${OOD_AI_APPTAINER_BIN:-}" ]; then
+        printf '%s\n' "$OOD_AI_APPTAINER_BIN"
+        return 0
+    fi
+
+    local setup=/shared/spack/share/spack/setup-env.sh
+    if [ ! -r "$setup" ]; then
+        lc_log "ERROR: Spack setup not readable at ${setup}"
+        return 1
+    fi
+    # shellcheck disable=SC1090
+    . "$setup" || { lc_log "ERROR: sourcing Spack setup failed"; return 1; }
+    spack env activate apptainer || { lc_log "ERROR: activating Spack env 'apptainer' failed"; return 1; }
+
+    local bin
+    bin=$(command -v apptainer) || { lc_log "ERROR: apptainer not on PATH after activation"; return 1; }
+    printf '%s\n' "$bin"
+}
+
+# lc_sterile_prefix
+#
+# Populates LC_STERILE with the env -i prefix used to invoke Apptainer. Nothing
+# inherited reaches Apptainer, so no APPTAINER_*, APPTAINERENV_*, SINGULARITY_*
+# or SINGULARITYENV_* variable can influence binds, mounts, home, overlays, or
+# any future runtime control. LC_LD_LIBRARY_PATH exists because a Spack-built
+# Apptainer may need its view's libraries; the cluster preflight determines
+# whether it is required.
+lc_sterile_prefix() {
+    LC_STERILE=( env -i "PATH=/usr/bin:/bin" )
+    if [ -n "${LC_LD_LIBRARY_PATH:-}" ]; then
+        LC_STERILE+=( "LD_LIBRARY_PATH=${LC_LD_LIBRARY_PATH}" )
+    fi
+}
