@@ -56,10 +56,13 @@ exts=$(image_exec codeserver sh -c 'ls /opt/code-server/extensions' 2>/dev/null 
 assert_contains "$exts" "anthropic.claude-code"
 assert_contains "$exts" "openai.chatgpt"
 
-it "the installed builds are glibc, not musl"
-# A request without an explicit target platform resolves to alpine-arm64. An
-# alpine build in a glibc image fails at activation, not at install time.
-assert_not_contains "$exts" "alpine"
+it "the installed extension builds are glibc, not musl"
+# The install directory name carries no platform token, so assert on the
+# platform-specific native binaries the vsix ships. An alpine (musl) build
+# ships bin/alpine-*; a glibc build ships bin/linux-*.
+bins=$(image_exec codeserver sh -c 'ls -d /opt/code-server/extensions/*/bin/*/ 2>/dev/null')
+assert_contains "$bins" "linux-"
+assert_not_contains "$bins" "alpine"
 
 it "each extension's bundled version is recorded separately from the system CLI"
 # A passing system-CLI policy check is not evidence about an extension's
@@ -72,7 +75,12 @@ it "the extension engine requirements are satisfied by the bundled Code version"
 # ^1.96.2. Assert the bundled version rather than trusting the pin.
 assert_contains "$(image_exec codeserver code-server --version 2>/dev/null)" "1.135"
 
-it "no extension was installed into the job-local user-data directory"
-assert_failure image_exec codeserver test -d /state/code-server/extensions
+it "no extension leaked into code-server's default user-data location"
+# If --extensions-dir were ignored, the install would land in code-server's
+# default user data directory instead of the image-owned one. /state does not
+# exist at build time (it is job-local, created at launch), so asserting
+# against it there would be vacuous -- this path is where a leak would
+# actually land, since the build runs as root under fakeroot.
+assert_failure image_exec codeserver test -e /root/.local/share/code-server/extensions
 
 finish
