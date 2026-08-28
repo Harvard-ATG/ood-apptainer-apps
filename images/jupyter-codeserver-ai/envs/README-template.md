@@ -1,4 +1,22 @@
-# Course Python environment: <COURSE>
+# Course Python environment: __COURSE__
+
+<!--
+Substitution contract for whoever renders this template (Task 10's
+provision-course-env.sh):
+
+  __COURSE__          -> the course's display name, e.g. "AM115"
+  __MANAGER__          -> exactly "micromamba" or "uv" (the value of this
+                          course's `manager` file), lowercase, nothing else
+  __PYTHON_VERSION__   -> the value of this course's `python-version` file,
+                          e.g. "3.13"
+
+Every placeholder is a plain token with this exact spelling, appearing
+verbatim wherever it is needed in the body below. A one-line substitution
+per token (e.g. `sed "s/__MANAGER__/micromamba/g"`) is sufficient; there is
+no alternation, punctuation, or explanatory text inside any token for a
+naive substitution to trip over. Do not introduce a token that varies in
+spelling or is wrapped in additional markup.
+-->
 
 This file is copied beside the environment prefixes at
 `<environment_root>/README.md` when the environment is first provisioned. It is
@@ -8,12 +26,14 @@ teaching staff clone or read.
 
 ## What owns `default`
 
-`default` is a **<MANAGER: micromamba|uv>**-managed environment. Manage it only
-with that tool. Do not run the other manager's install/update/remove commands
-against this prefix, and do not mix tools within one prefix — changing manager
-means recreating the prefix from scratch, not converting it in place.
+`default` is a **__MANAGER__**-managed environment. (`__MANAGER__` is always
+either `micromamba` or `uv` — see the substitution contract above.) Manage it
+only with that tool. Do not run the other manager's install/update/remove
+commands against this prefix, and do not mix tools within one prefix —
+changing manager means recreating the prefix from scratch, not converting it
+in place.
 
-Configured Python version: **<PYTHON_VERSION>** (for example, `3.13`).
+Configured Python version: **__PYTHON_VERSION__** (for example, `3.13`).
 
 ## `staging`
 
@@ -104,12 +124,19 @@ If an update fails or leaves the environment broken:
 ## Course-specific constraints
 
 <!--
-For most courses this section is empty. CS1090A carries one binding
-constraint; keep it here verbatim for that course's copy of this file, and
-remove this section entirely for courses without one.
+Machine-readable removal markers: a section between a
+"BEGIN COURSE-SPECIFIC: <course>" and matching "END COURSE-SPECIFIC: <course>"
+comment applies to that one course only. Whoever renders this template for a
+different course should strip every such pair mechanically (course name
+mismatch is enough to know to remove it), rather than relying on the section
+being last or on this prose. A course with no course-specific constraints
+gets no such pair at all, and this heading may then read "None." or be
+omitted along with it.
 -->
 
+<!-- BEGIN COURSE-SPECIFIC: cs1090a -->
 **CS1090A only:** `otter-grader` is pinned to `>=7,<8`. This upper bound is a
 course requirement, not a suggestion — **consult ATG before installing an
 otter-grader version 8 or later.** Crossing it without checking first can
 break how the course's assignments are graded.
+<!-- END COURSE-SPECIFIC: cs1090a -->

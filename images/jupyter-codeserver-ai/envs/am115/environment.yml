@@ -9,6 +9,10 @@
 # already ships Node 24.20.0 (which both AI CLIs were validated against) and
 # the launcher prepends this prefix's bin/ to PATH, so a second Node here
 # would shadow the image's.
+#
+# The course also requested codex; it is not a package here either. The
+# image installs the Codex CLI system-wide, alongside Claude Code, so it is
+# already provided and does not belong in the kernel-side environment.
 name: am115
 channels:
   - conda-forge
