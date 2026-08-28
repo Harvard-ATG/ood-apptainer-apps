@@ -132,7 +132,11 @@ if [ "$(normalize_arch "$ARTIFACT_ARCH")" != "$(normalize_arch "$TARGET_ARCH")" 
     exit 1
 fi
 
-sha256sum "$SIF" > "${SIF}.sha256"
+# Record only the basename, so `sha256sum -c` verifies correctly from whatever
+# directory the artifact is deployed into. An absolute path here makes the check
+# fail once the artifact is copied to the cluster image root, even though the
+# digest itself is correct.
+( cd "$OUT_DIR" && sha256sum "$(basename "$SIF")" > "$(basename "$SIF").sha256" )
 
 {
     echo "artifact=$(basename "$SIF")"

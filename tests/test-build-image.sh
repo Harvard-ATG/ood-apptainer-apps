@@ -72,4 +72,10 @@ it "it still warns rather than refuses -- cross-arch validation builds are legit
 early=$(printf '%s' "$body" | sed -n "${warn_pos},${build_pos}p")
 assert_not_contains "$early" "exit 1"
 
+it "the checksum sidecar records only the artifact basename"
+# An absolute path in the sidecar makes `sha256sum -c` fail once the artifact is
+# copied to the cluster image root, even though the digest itself is correct.
+assert_contains "$body" 'cd "$OUT_DIR" && sha256sum "$(basename "$SIF")"'
+assert_not_contains "$body" 'sha256sum "$SIF" >'
+
 finish
