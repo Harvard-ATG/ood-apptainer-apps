@@ -404,4 +404,209 @@ assert_success test -f images/jupyter-codeserver-ai/envs/cs1090a/README-note.md
 it "the moved note still pins the otter-grader constraint"
 assert_contains "$(cat images/jupyter-codeserver-ai/envs/cs1090a/README-note.md)" "otter-grader"
 
+# ---------------------------------------------------------------------------
+# scripts/build-course-env.sh: the admin wrapper that validates, submits ONE
+# compute-node job, and reports that job's real result.
+#
+# It needs a stub `sbatch` (records its argv and the job script it was
+# handed, exits with $SBATCH_EXIT) plus a fabricated /shared-shaped tree,
+# because the wrapper cross-checks its derived paths against the REAL
+# committed sub-apps (ood/*/local/<course>.yml.erb), and those hardcode the
+# real /shared/courseSharedFolders convention. Rather than touch that real
+# path (unwritable here, and not ours to touch even where it exists), a
+# throwaway repo copy is built with am115's own sub-apps rewritten onto a
+# writable fake root -- the same indirection tests/test-launch-e2e.sh and
+# tests/lib/fixture.sh already use for "/shared/...". The convention
+# STRUCTURE (<id>outer/<id>) is exercised for real; only the root prefix is
+# fake.
+# ---------------------------------------------------------------------------
+
+it "build-course-env.sh exists and is executable"
+assert_success test -x scripts/build-course-env.sh
+
+BCE_REPO="$ROOT/bce-repo"
+mkdir -p "$BCE_REPO/scripts" "$BCE_REPO/ood/lib" \
+         "$BCE_REPO/ood/jupyterlab-ai/local" "$BCE_REPO/ood/codeserver-ai/local" \
+         "$BCE_REPO/images/jupyter-codeserver-ai/envs/am115" "$BCE_REPO/tests"
+cp scripts/build-course-env.sh "$BCE_REPO/scripts/build-course-env.sh"
+cp scripts/provision-course-env.sh "$BCE_REPO/scripts/provision-course-env.sh"
+chmod 755 "$BCE_REPO/scripts/build-course-env.sh" "$BCE_REPO/scripts/provision-course-env.sh"
+cp ood/lib/launch-common.sh "$BCE_REPO/ood/lib/launch-common.sh"
+cp tests/render.rb "$BCE_REPO/tests/render.rb"
+cp images/jupyter-codeserver-ai/envs/am115/manager \
+   images/jupyter-codeserver-ai/envs/am115/python-version \
+   images/jupyter-codeserver-ai/envs/am115/environment.yml \
+   "$BCE_REPO/images/jupyter-codeserver-ai/envs/am115/"
+
+# am115's REAL sub-apps, rewritten onto a writable fake course-shared root.
+# Everything else about them -- title, access control, imagefile -- is
+# untouched, so the agreement check below runs against a realistic sub-app,
+# not a hand-built fixture that might not exercise the real template shape.
+BCE_COURSE_ROOT="$ROOT/bce-shared/courseSharedFolders"
+sed "s#/shared/courseSharedFolders#${BCE_COURSE_ROOT}#g" \
+    ood/jupyterlab-ai/local/am115.yml.erb > "$BCE_REPO/ood/jupyterlab-ai/local/am115.yml.erb"
+sed "s#/shared/courseSharedFolders#${BCE_COURSE_ROOT}#g" \
+    ood/codeserver-ai/local/am115.yml.erb > "$BCE_REPO/ood/codeserver-ai/local/am115.yml.erb"
+
+mkdir -p "$BCE_COURSE_ROOT/172566outer/172566"
+mkdir -p "$ROOT/bce-images-canonical"
+: > "$ROOT/bce-images-canonical/ok.sif"
+
+SBATCH_ARGV_LOG="$ROOT/sbatch-argv.log"
+SBATCH_JOB_SCRIPT_FILE="$ROOT/job-script.sh"
+export SBATCH_ARGV_LOG SBATCH_JOB_SCRIPT_FILE
+cat > "$BIN/sbatch" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >> "$SBATCH_ARGV_LOG"
+for last; do :; done
+cp "$last" "$SBATCH_JOB_SCRIPT_FILE"
+exit "${SBATCH_EXIT:-0}"
+STUB
+chmod 755 "$BIN/sbatch"
+
+export OOD_AI_COURSE_SHARED_ROOT="$BCE_COURSE_ROOT"
+export OOD_AI_IMAGE_ROOT_FAST="$ROOT/bce-images-fast"
+export OOD_AI_IMAGE_ROOT_CANONICAL="$ROOT/bce-images-canonical"
+export OOD_AI_SCRATCH_ROOT="$ROOT/bce-scratch"
+
+DERIVED_COURSE_FOLDER="${BCE_COURSE_ROOT}/172566outer/172566"
+
+# build_course_env <args...>
+#
+# Runs the wrapper, echoing its combined stdout+stderr (so callers can use
+# command substitution the normal way) and returning its real exit status.
+# Also refreshes the global SBATCH_ARGV and JOB_SCRIPT from the stub's log
+# files -- meaningful only for a call NOT wrapped in $(...), since a command
+# substitution runs this function in a subshell and any plain variable
+# assignment inside it is discarded when the subshell exits. Every test below
+# that reads $SBATCH_ARGV or $JOB_SCRIPT calls build_course_env directly
+# (never through $()) for exactly that reason.
+build_course_env() {
+    : > "$SBATCH_ARGV_LOG"
+    : > "$SBATCH_JOB_SCRIPT_FILE"
+    "$BCE_REPO/scripts/build-course-env.sh" "$@" 2>&1
+    local status=$?
+    SBATCH_ARGV=$(cat "$SBATCH_ARGV_LOG" 2>/dev/null || true)
+    JOB_SCRIPT=$(cat "$SBATCH_JOB_SCRIPT_FILE" 2>/dev/null || true)
+    return "$status"
+}
+
+build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
+
+it "build-course-env.sh submits ONE job and waits for it"
+# --wait is what lets the wrapper return the build's real result. Without it
+# the administrator gets a job id and a success message for a build that may
+# fail ten minutes later with nobody watching.
+assert_contains "$SBATCH_ARGV" "--wait"
+
+it "it derives the course folder from the Canvas ID by the documented convention"
+assert_contains "$JOB_SCRIPT" "$DERIVED_COURSE_FOLDER"
+
+it "the job binds exactly three paths: course folder, scratch, and the repository"
+# A substring check on one specific bind spelling (e.g. "-B \$HOME") would
+# still pass for a HOME bind written with different quoting or variable
+# syntax. Counting binds catches ANY extra bind, spelled any way.
+BIND_COUNT=$(printf '%s\n' "$JOB_SCRIPT" | grep -c -- '-B ')
+assert_eq "$BIND_COUNT" "3"
+
+it "the job binds ONLY the course folder, scratch, and the repository -- no HOME reference at all"
+# Independent of the count above: a script could bind exactly three paths and
+# still have one of them be HOME (e.g. swapped in for the repo bind). This
+# checks the whole generated script never mentions HOME, in any quoting or
+# variable-syntax style -- \$HOME, \${HOME}, or an already-expanded literal
+# path, none of which share a common substring with each other.
+assert_not_contains "$JOB_SCRIPT" "HOME"
+
+it "the job runs the image-owned provisioning helper, not the OOD launch path"
+# A bare substring check on the filename would still pass if only a COMMENT
+# mentioned provision-course-env.sh while the actual invocation line called
+# something else -- this pins it to the real invocation, at its real path.
+assert_contains "$JOB_SCRIPT" "bash \"${BCE_REPO}/scripts/provision-course-env.sh\""
+
+it "the job's apptainer invocation names the resolved image"
+assert_contains "$JOB_SCRIPT" "$ROOT/bce-images-canonical/ok.sif"
+
+it "it fails when the course specification directory is missing"
+assert_contains "$(build_course_env --course nosuch --canvas-id 1 --image i.sif)" "nosuch"
+
+it "it fails when the deployed image is not readable"
+assert_contains "$(build_course_env --course am115 --canvas-id 172566 --image absent.sif)" "image"
+
+it "it propagates the job's failure to its own exit status"
+SBATCH_EXIT=7 build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
+assert_eq "$?" "7"
+
+it "--dry-run prints the job script without submitting"
+: > "$SBATCH_ARGV_LOG"
+out=$(build_course_env --course am115 --canvas-id 172566 --image ok.sif --dry-run)
+assert_contains "$out" "apptainer"
+
+it "--dry-run does not submit anything"
+assert_eq "$(cat "$SBATCH_ARGV_LOG")" ""
+
+it "--dry-run still exits 0"
+build_course_env --course am115 --canvas-id 172566 --image ok.sif --dry-run >/dev/null
+assert_eq "$?" "0"
+
+it "it requires all three mandatory flags"
+assert_contains "$(scripts/build-course-env.sh --course am115 2>&1)" "usage"
+
+it "it rejects an unknown flag"
+assert_contains "$(scripts/build-course-env.sh --nope 2>&1)" "usage"
+
+it "it prints the derived course folder and environment root"
+OUT=$(build_course_env --course am115 --canvas-id 172566 --image ok.sif)
+assert_contains "$OUT" "course_folder=${DERIVED_COURSE_FOLDER}"
+assert_contains "$OUT" "environment_root=${DERIVED_COURSE_FOLDER}/envs"
+
+it "it fails when the derived course folder does not exist"
+# Naming the ID alone would also pass if the writable check alone caught this
+# (test -w on a nonexistent path is also false) with a message that merely
+# happens to repeat the ID -- pin this to "does not exist" specifically, so
+# an existence check that got silently deleted shows up as a failure here,
+# not just as a coincidentally-similar writability failure.
+assert_contains "$(build_course_env --course am115 --canvas-id 999999 --image ok.sif)" "does not exist"
+
+it "it fails when the derived course folder exists but is not writable"
+mkdir -p "${BCE_COURSE_ROOT}/555555outer/555555"
+chmod 500 "${BCE_COURSE_ROOT}/555555outer/555555"
+NOTWRITABLE_OUT=$(build_course_env --course am115 --canvas-id 555555 --image ok.sif)
+chmod 700 "${BCE_COURSE_ROOT}/555555outer/555555"
+assert_contains "$NOTWRITABLE_OUT" "writable"
+
+it "it fails, naming the disagreement, when a sub-app's declared path disagrees with what was derived"
+# A course whose spec directory exists but whose sub-apps declare a DIFFERENT
+# course folder than the one just derived -- the copy-paste-and-forgot-to-
+# update-the-folder mistake render-forms.sh's own check #6 guards against at
+# the OOD-form layer. This proves build-course-env.sh guards it too, at the
+# provisioning layer, independently.
+mkdir -p "$BCE_REPO/images/jupyter-codeserver-ai/envs/mismatched"
+cp images/jupyter-codeserver-ai/envs/am115/manager \
+   images/jupyter-codeserver-ai/envs/am115/python-version \
+   images/jupyter-codeserver-ai/envs/am115/environment.yml \
+   "$BCE_REPO/images/jupyter-codeserver-ai/envs/mismatched/"
+# Swaps BOTH halves of the folder ID uniformly (172566outer/172566 ->
+# 172567outer/172567), so the sub-app still declares an internally
+# consistent, well-formed course folder -- just for the WRONG Canvas ID. The
+# --canvas-id passed below stays 172566, so the derived folder still resolves
+# to the real, pre-created fixture directory.
+sed 's#172566outer/172566#172567outer/172567#g' "$BCE_REPO/ood/jupyterlab-ai/local/am115.yml.erb" \
+    > "$BCE_REPO/ood/jupyterlab-ai/local/mismatched.yml.erb"
+cp "$BCE_REPO/ood/codeserver-ai/local/am115.yml.erb" "$BCE_REPO/ood/codeserver-ai/local/mismatched.yml.erb"
+MISMATCH_OUT=$(build_course_env --course mismatched --canvas-id 172566 --image ok.sif)
+assert_contains "$MISMATCH_OUT" "disagrees"
+
+it "--environment-root skips the sub-app agreement check for a deliberate override"
+# The mismatched course above still fails once an override is given, because
+# the course folder itself must still exist and be writable -- so this reuses
+# a fresh course whose derived folder legitimately exists.
+OVERRIDE_OUT=$(build_course_env --course am115 --canvas-id 172566 --image ok.sif \
+    --environment-root "${DERIVED_COURSE_FOLDER}/alt-envs")
+assert_not_contains "$OVERRIDE_OUT" "disagrees"
+
+it "--environment-root override is reflected in the generated job script"
+build_course_env --course am115 --canvas-id 172566 --image ok.sif \
+    --environment-root "${DERIVED_COURSE_FOLDER}/alt-envs" >/dev/null
+assert_contains "$JOB_SCRIPT" "${DERIVED_COURSE_FOLDER}/alt-envs"
+
 finish
