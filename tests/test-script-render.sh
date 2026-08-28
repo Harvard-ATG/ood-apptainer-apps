@@ -107,6 +107,15 @@ assert_not_contains "$jl_path" "/opt/conda/bin"
 it "codeserver: runs the code-server in-container launcher"
 assert_contains "$(cat "$TMP/codeserver-ai-script.sh")" "codeserver.script.sh"
 
+it "jupyterlab: writes COURSE_ENV_STAGING into the container environment file"
+# The staff staging affordance exists only if this key arrives. With it
+# renamed by one letter, no staff member sees `Course Python (STAGING)` in any
+# session, and nothing anywhere errors -- the in-container launcher simply
+# takes its `[ -n "${COURSE_ENV_STAGING:-}" ]` false branch and says nothing.
+# The negative codeserver assertion below cannot substitute: it passes when
+# the key is missing from BOTH apps.
+assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" '"COURSE_ENV_STAGING=${COURSE_ENV_STAGING}"'
+
 it "codeserver: does NOT write COURSE_ENV_STAGING -- staging is Jupyter-only"
 assert_not_contains "$(cat "$TMP/codeserver-ai-script.sh")" "COURSE_ENV_STAGING"
 
