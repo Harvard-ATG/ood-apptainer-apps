@@ -7,7 +7,7 @@ From: alpine:3.20
   # The real app images are Debian-based and have bash; the in-container
   # launchers use `#!/usr/bin/env bash`. The stub must match or it cannot
   # execute them at all.
-  apk add --no-cache bash
+  apk add --no-cache bash nodejs
 
   # Shim standing in for a real server. Records argv and PID, then holds a
   # listening socket so OOD readiness checks succeed.
@@ -35,3 +35,25 @@ SHIM
   # start against the stub either.
   mkdir -p /opt/conda/bin
   ln -s /usr/local/bin/_stub-server /opt/conda/bin/jupyter
+
+  # The real JupyterLab image ships its own interpreter at /opt/conda/bin/python,
+  # which backs the fallback kernel. The stub only needs the path to exist and
+  # to be executable -- nothing in these tests runs it.
+  printf '#!/bin/sh\nexit 0\n' > /opt/conda/bin/python
+  chmod 755 /opt/conda/bin/python
+
+  # The real images install Node at /usr/local/lib/nodejs/... and symlink
+  # /usr/local/bin/node, which is on the launch PATH. The merge runs through
+  # node because the code-server image is Ubuntu-based and has no python3.
+  ln -sf /usr/bin/node /usr/local/bin/node
+
+  # Stands in for the image's seed settings. The extra key is the point of the
+  # test: it must survive into the generated file.
+  mkdir -p /etc/code-server
+  cat > /etc/code-server/settings.json <<'SEED'
+{
+  "security.workspace.trust.enabled": false,
+  "telemetry.telemetryLevel": "off",
+  "extensions.autoCheckUpdates": false
+}
+SEED

@@ -17,25 +17,68 @@ log "container HOME=${HOME}"
 log "course environment=${COURSE_ENV}"
 
 USER_DATA_DIR=/state/code-server
-mkdir -p "${USER_DATA_DIR}/User"
+SEED_SETTINGS=/etc/code-server/settings.json
+mkdir -p "${USER_DATA_DIR}/User" || { log "ERROR: cannot create ${USER_DATA_DIR}/User"; exit 1; }
 
-# Generated at launch so the course interpreter path is not baked into the
-# shared image. This currently contains only the two keys below -- there is no
-# image yet to seed additional settings from (Plan 1). Merging the image's
-# seed settings.json is Plan 2's job, once the image exists and its content is
-# known. Workspace trust is restored on every launch, so a user change lasts
-# only for the session.
-cat > "${USER_DATA_DIR}/User/settings.json" <<SETTINGS
-{
-  "python.defaultInterpreterPath": "${COURSE_ENV}/bin/python",
-  "security.workspace.trust.enabled": false
+# usable <prefix> -- does this prefix's interpreter actually RUN?
+#
+# Run here, in the container, rather than on the host: the compute node and the
+# image do not share a libc, so a prefix that runs on one can fail on the other.
+# That is why lc_classify_course_env deliberately stops at `[ -x ]` and leaves
+# this question to the launcher.
+#
+# `[ -x ]` alone is not the question. A default/bin/python that exists and is
+# executable but dies on invocation is the shape of a course environment broken
+# by a failed staff update, and pointing python.defaultInterpreterPath at it is
+# worse than leaving VS Code to its own discovery: the setting LOOKS configured,
+# so nothing looks wrong. Unlike the JupyterLab side this asks nothing about
+# ipykernel -- code-server's Python extension has no such requirement -- so
+# `-c 'import sys'` is the whole question.
+usable() {
+    [ -n "$1" ] && [ -x "$1/bin/python" ] && "$1/bin/python" -c 'import sys' >/dev/null 2>&1
 }
-SETTINGS
 
-# Prepend the course environment to the terminal PATH. The server itself comes
-# from its image-owned location, so this cannot start code-server from the
-# external environment.
-export PATH="${COURSE_ENV}/bin:${PATH}"
+# The course interpreter cannot be baked into a shared image, so it is generated
+# here -- but the image's own settings must survive. The two are MERGED, with
+# the generated keys winning. Copying the seed and then rewriting the same path
+# with a heredoc would discard every image key while appearing to honour it, and
+# the failure is silent: workspace trust is among the generated keys, so the
+# session looks right while any image-level setting quietly vanishes.
+#
+# node rather than python3 or jq: the code-server image is Ubuntu-based and has
+# neither, while node is guaranteed -- it is what both AI CLIs run on.
+COURSE_PYTHON=""
+if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
+    COURSE_PYTHON="${COURSE_ENV}/bin/python"
+    # Prepend the course environment so the integrated terminal resolves
+    # `python` and the course's own entry points. Note what this means: the
+    # FIRST element of PATH is now a staff-writable directory on a shared
+    # filesystem. That is why the exec below names the server by its absolute
+    # image-owned path -- see the comment there. Skipped when degraded:
+    # prepending a directory that does not work helps nobody.
+    export PATH="${COURSE_ENV}/bin:${PATH}"
+else
+    log "WARNING: no usable course environment (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
+    log "WARNING: the session will START, but python.defaultInterpreterPath is NOT set, the"
+    log "WARNING: terminal PATH does not include the course environment, and course packages"
+    log "WARNING: are unavailable until the environment is provisioned or repaired by teaching"
+    log "WARNING: staff or ATG."
+fi
+
+node -e '
+const fs = require("fs");
+const [seedPath, outPath, coursePython] = process.argv.slice(1);
+let seed = {};
+if (fs.existsSync(seedPath)) {
+  seed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+}
+const generated = { "security.workspace.trust.enabled": false };
+if (coursePython) { generated["python.defaultInterpreterPath"] = coursePython; }
+fs.writeFileSync(outPath, JSON.stringify({ ...seed, ...generated }, null, 2) + "\n");
+' "${SEED_SETTINGS}" "${USER_DATA_DIR}/User/settings.json" "${COURSE_PYTHON}" || {
+    log "ERROR: could not generate ${USER_DATA_DIR}/User/settings.json"
+    exit 1
+}
 
 log "starting code-server"
 
@@ -47,7 +90,17 @@ log "starting code-server"
 #
 # exec so code-server becomes the container's first process and receives
 # scancel directly.
-exec code-server \
+#
+# The ABSOLUTE image-owned path is deliberate and load-bearing. Above, this
+# script prepends ${COURSE_ENV}/bin to PATH, making a staff-writable directory
+# on a shared filesystem the FIRST place a bare command name resolves. A file
+# named `code-server` placed there -- by a mistaken staff install, or
+# otherwise -- would then be started in place of the image's server, with the
+# session's own credential in its environment. /usr/local/bin/code-server is
+# the image's symlink into /usr/local/lib/code-server, and it is not reachable
+# from the course environment. jupyterlab.script.sh execs /opt/conda/bin/jupyter
+# for exactly the same reason.
+exec /usr/local/bin/code-server \
     --auth=password \
     --bind-addr="0.0.0.0:${CODE_SERVER_PORT}" \
     --extensions-dir=/opt/code-server/extensions \

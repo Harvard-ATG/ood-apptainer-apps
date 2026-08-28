@@ -62,6 +62,57 @@ class FormContext
   end
 end
 
+# ActiveSupport's blank?, which the dashboard provides and every sibling
+# submit.yml.erb uses. Reproduced rather than depended on, so this harness needs
+# no gems beyond the standard library.
+class Object
+  def blank?
+    respond_to?(:empty?) ? !!empty? : !self
+  end
+end
+
+class NilClass
+  def blank?
+    true
+  end
+end
+
+# ActiveSupport's String#blank? checks for whitespace-only content, not merely
+# zero length -- Object#empty? alone would call "  " (a realistic OOD form
+# value: a field a user left as spaces) non-blank, which is wrong.
+class String
+  def blank?
+    /\A[[:space:]]*\z/.match?(self)
+  end
+end
+
+# OOD hands submit.yml.erb the form values as BARE LOCALS, not through context.
+# An attribute whose value is a widget hash arrives as its value: entry, and
+# every value arrives as a string, because it came back from an HTML form.
+def submit_binding(doc)
+  values = {}
+  (doc['form'] || []).each do |key|
+    raw = (doc['attributes'] || {})[key.to_s]
+    raw = raw['value'] if raw.is_a?(Hash)
+    values[key.to_s] = raw.nil? ? '' : raw.to_s
+  end
+  b = binding
+  values.each { |k, v| b.local_variable_set(k.to_sym, v) }
+  b
+end
+
+# OOD renders view.html.erb with the connection details as BARE LOCALS -- host,
+# port and password -- not through `context`, and not from the sub-app's form:
+# list, which is why this needs its own binding rather than reusing either of
+# the two above. The values are driven by the environment, the same way
+# FAKE_GROUPS and FAKE_STAGED_ROOT drive the other two doubles.
+def view_binding
+  host     = ENV.fetch('FAKE_VIEW_HOST', 'node1')
+  port     = ENV.fetch('FAKE_VIEW_PORT', '7123')
+  password = ENV.fetch('FAKE_VIEW_PASSWORD', 'view-plaintext-secret')
+  binding
+end
+
 def render_form(path)
   src = File.read(path)
   out = ERB.new(src, trim_mode: '-').result(binding)
@@ -77,18 +128,22 @@ until args.empty?
   case (flag = args.shift)
   when '--form'     then form = args.shift; mode ||= :form
   when '--template' then template = args.shift; mode = :template
+  when '--submit'   then template = args.shift; mode = :submit
+  when '--view'     then template = args.shift; mode = :view
   else
     warn "unknown argument: #{flag}"
     exit 64
   end
 end
 
-if form.nil?
-  warn 'usage: render.rb --form <subapp.yml.erb> [--template <file.erb>]'
+# --view is the one mode that needs no sub-app: OOD binds bare connection
+# locals into view.html.erb, never form attributes.
+if form.nil? && mode != :view
+  warn 'usage: render.rb --form <subapp.yml.erb> [--template <file.erb>] | --view <view.html.erb>'
   exit 64
 end
 
-_raw, doc = render_form(form)
+doc = form.nil? ? nil : render_form(form).last
 
 case mode
 when :form
@@ -97,4 +152,8 @@ when :template
   context = FormContext.new(doc['attributes'] || {}, doc['form'] || [])
   session = Session.new
   print ERB.new(File.read(template), trim_mode: '-').result(binding)
+when :submit
+  print ERB.new(File.read(template), trim_mode: '-').result(submit_binding(doc))
+when :view
+  print ERB.new(File.read(template), trim_mode: '-').result(view_binding)
 end

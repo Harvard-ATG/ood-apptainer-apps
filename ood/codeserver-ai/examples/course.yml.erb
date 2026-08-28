@@ -1,0 +1,99 @@
+<%-
+# Copy this file into local/<course>.yml.erb and edit every CHANGE ME value.
+# Sub-apps do NOT inherit from each other: this is a full form, and a shared
+# value that changes must be updated in each course file independently.
+
+# Admin groups are matched by full group name.
+adminGroups = [
+  "ondemand-admins-1025174" # HUIT OOD admin group, prod environment
+]
+
+# ACCESS. Bare Canvas course IDs, AS QUOTED STRINGS -- an unquoted integer never
+# matches, because the regex capture below yields a string. Add every
+# cross-listed section's Canvas ID that must be able to see this app.
+enabledGroups = [
+  "000000" # CHANGE ME - Canvas course ID
+]
+
+def arrays_have_common_element(array1, array2)
+  !(array1 & array2).empty?
+end
+
+userGroups = OodSupport::User.new.groups.sort_by(&:id).map(&:name)
+if arrays_have_common_element(userGroups, adminGroups)
+  cluster="*"
+else
+  # Compare the EXTRACTED Canvas IDs, never the raw group names. Comparing the
+  # raw list is a defect this app family has shipped twice: it fails closed and
+  # silently, so the sub-app disappears for every enrolled student while
+  # continuing to work for administrators, who match on the other list.
+  userCanvasGroups = userGroups.flat_map{ |str| str.scan(/^canvas(\d+)-\d+/) }.flatten
+  if arrays_have_common_element(userCanvasGroups, enabledGroups)
+    cluster="*"
+  else
+    cluster="disable_this_app"
+  end
+end
+-%>
+---
+cluster: "<%= cluster %>"
+title: "Code Server - CHANGE ME"
+cacheable: false
+description: |
+  CHANGE ME - one or two sentences naming the course.
+
+  Claude Code and Codex are preinstalled; sign in with your own account. These
+  sessions mount your real home directory and disable editor workspace trust,
+  so they are not suitable for regulated or otherwise sensitive data.
+
+# Everything a template or submit.yml.erb reads must be listed here. OOD passes
+# ONLY form:-listed attributes into the template context; an attribute set below
+# but missing from this list renders as nothing, with no error.
+form:
+  - bc_num_hours
+  - bc_queue
+  - custom_num_cores
+  - cpu_min
+  - cpu_max
+  - hours_min
+  - hours_max
+  - mem_per_cpu
+  - imagefile
+  - course
+  - course_folder
+  - environment_root
+
+attributes:
+  bc_num_hours:
+    label: "Number of hours"
+    value: 2
+    min: 1
+    max: 4
+    step: 1
+  bc_queue: "general"
+  custom_num_cores:
+    widget: "number_field"
+    label: "Number of CPUs"
+    value: 1
+    min: 1
+    max: 2
+    step: 1
+
+  # Server-side bounds. The widget values above are the user interface; these
+  # are what submit.yml.erb enforces. Keep the two in step.
+  cpu_min: "1"
+  cpu_max: "2"
+  hours_min: "1"
+  hours_max: "4"
+  mem_per_cpu: "4G"
+
+  # Relative to an image root, never absolute: the launcher joins it onto
+  # /scratch/apptainerImages or /shared/apptainerImages itself.
+  imagefile: "jupyter-codeserver-ai/CHANGE-ME.sif" # codeserver-*.sif artifact
+
+  # The CANONICAL filesystem Canvas ID -- deliberately separate from
+  # enabledGroups above, so adding a cross-list access group can never silently
+  # change which folder is mounted.
+  course: "000000"
+  course_folder: "/shared/courseSharedFolders/000000outer/000000"
+  environment_root: "/shared/courseSharedFolders/000000outer/000000/envs"

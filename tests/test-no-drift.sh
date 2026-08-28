@@ -23,6 +23,13 @@ for app in jupyterlab-ai codeserver-ai; do
     fi
 done
 
+it "jupyterlab and codeserver submit.yml.erb are byte-identical"
+if diff -q ood/jupyterlab-ai/submit.yml.erb ood/codeserver-ai/submit.yml.erb >/dev/null 2>&1; then
+    _pass
+else
+    _fail "drift detected between the two submit.yml.erb copies$(printf '\n')$(diff ood/jupyterlab-ai/submit.yml.erb ood/codeserver-ai/submit.yml.erb | head -20)"
+fi
+
 it "sync script is executable"
 assert_success test -x scripts/sync-launch-lib.sh
 

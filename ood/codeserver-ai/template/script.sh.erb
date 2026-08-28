@@ -29,13 +29,12 @@ COURSE_FOLDER="<%= context.course_folder %>"
 ENVIRONMENT_ROOT_RAW="<%= context.environment_root %>"
 
 ENVIRONMENT_ROOT=$(lc_validate_under "${ENVIRONMENT_ROOT_RAW}" "${COURSE_FOLDER}") || exit 1
-COURSE_ENV=$(lc_validate_under "${ENVIRONMENT_ROOT}/default" "${COURSE_FOLDER}") || exit 1
 
-if [ ! -x "${COURSE_ENV}/bin/python" ]; then
-    log "ERROR: no executable interpreter at ${COURSE_ENV}/bin/python"
-    exit 1
-fi
-log "course environment=${COURSE_ENV}"
+# A missing course environment degrades the session; only an escaping path is
+# fatal. See lc_classify_course_env.
+lc_classify_course_env "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}" || exit 1
+COURSE_ENV="${LC_COURSE_ENV}"
+COURSE_ENV_STATUS="${LC_COURSE_ENV_STATUS}"
 
 # Overridable so the test suite can point the state layout at a fixture
 # instead of the real /scratch. The default is the spec's State layout value.
@@ -62,6 +61,7 @@ ENV_FILE="${JOBROOT}/container.env"
 lc_write_env_file "${ENV_FILE}" \
     "ENVIRONMENT_ROOT=${ENVIRONMENT_ROOT}" \
     "COURSE_ENV=${COURSE_ENV}" \
+    "COURSE_ENV_STATUS=${COURSE_ENV_STATUS}" \
     "CLAUDE_CONFIG_DIR=${HOME}/.config/ood-huit/claude" \
     "CODEX_HOME=${HOME}/.config/ood-huit/codex" \
     "GH_CONFIG_DIR=${HOME}/.config/gh" \

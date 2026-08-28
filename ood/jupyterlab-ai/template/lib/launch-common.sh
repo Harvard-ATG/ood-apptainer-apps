@@ -162,6 +162,62 @@ lc_validate_under() {
     esac
 }
 
+# lc_classify_course_env <environment_root> <course_folder>
+#
+# Sets LC_COURSE_ENV to the resolved <environment_root>/default and
+# LC_COURSE_ENV_STATUS to "ok" or "missing". Returns nonzero ONLY when the
+# prefix escapes the course folder.
+#
+# The asymmetry is deliberate. An escaping path is a containment failure and
+# must stop the launch. An absent prefix is an ordinary operational state --
+# the environment has not been provisioned yet, or a staff update removed it --
+# and stopping the launch for it leaves the student with a failed job and no
+# way to see why. The session starts either way; only the kernel set degrades.
+#
+# What is NOT checked here: whether the interpreter actually runs. The compute
+# node and the image do not share a libc, so a probe that succeeds on the host
+# can still fail inside the container. That probe belongs to the in-container
+# launcher, which is the only place its answer is true.
+#
+# shellcheck disable=SC2034
+# LC_COURSE_ENV and LC_COURSE_ENV_STATUS are outputs: this file is linted in
+# isolation, so shellcheck cannot see the callers (script.sh.erb, and this
+# file's own test suite) that read them after this function returns.
+lc_classify_course_env() {
+    local env_root="$1" course_folder="$2" prefix
+
+    prefix=$(lc_validate_under "${env_root}/default" "${course_folder}") || return 1
+    LC_COURSE_ENV="$prefix"
+
+    if [ -x "${prefix}/bin/python" ]; then
+        LC_COURSE_ENV_STATUS="ok"
+        lc_log "course environment=${prefix}"
+        return 0
+    fi
+
+    LC_COURSE_ENV_STATUS="missing"
+    lc_log "WARNING: no executable interpreter at ${prefix}/bin/python"
+    lc_log "WARNING: the course environment is not available; the session will START but will"
+    lc_log "WARNING: offer only the image kernel, which has no course packages."
+    return 0
+}
+
+# lc_resolve_staging <environment_root> <course_folder>
+#
+# Echoes the resolved <environment_root>/staging, or nothing when it escapes the
+# course folder. Whether this user may SEE a staging kernel is decided in the
+# container by [ -w "$ENVIRONMENT_ROOT" ]: the staff group cannot be named
+# there, so group membership is not a question that can be asked.
+lc_resolve_staging() {
+    local env_root="$1" course_folder="$2" resolved
+    if resolved=$(lc_validate_under "${env_root}/staging" "${course_folder}" 2>/dev/null); then
+        printf '%s\n' "$resolved"
+    else
+        lc_log "WARNING: ${env_root}/staging escapes ${course_folder}; no staging kernel"
+    fi
+    return 0
+}
+
 # lc_make_state_dirs <dir>...
 lc_make_state_dirs() {
     local d
