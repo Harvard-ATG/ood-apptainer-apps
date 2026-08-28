@@ -1,0 +1,60 @@
+Bootstrap: docker
+Registry: quay.io
+From: jupyter/minimal-notebook:lab-4.6.3
+# Base tag is pinned in common/versions.env as JUPYTER_BASE_TAG and must match.
+# Chosen for a maintained Python/JupyterLab integration, nbconvert's PDF
+# toolchain, and the utilities a session needs.
+
+%files
+    common/versions.env          /opt/build/versions.env
+    common/install-ai-agents.sh  /opt/build/install-ai-agents.sh
+    common/claude-code           /opt/build/claude-code
+    common/codex                 /opt/build/codex
+
+%post -c /bin/bash
+    set -euo pipefail
+
+    # The recipe runs as root here. It installs the agents, the environment
+    # managers, and the governance files.
+    bash /opt/build/install-ai-agents.sh
+
+    # Remove the base's own kernelspec. The stack registers a python3 /
+    # "Python 3 (ipykernel)" kernelspec pointing at the image's conda
+    # interpreter; left in place students would see a second kernel that
+    # silently lacks every course package. Course kernels come from the
+    # external environment via a kernelspec the launcher generates.
+    rm -rf /opt/conda/share/jupyter/kernels/python3
+    if [ -n "$(ls -A /opt/conda/share/jupyter/kernels 2>/dev/null)" ]; then
+        echo "ERROR: unexpected kernelspecs remain in the image:" >&2
+        ls -A /opt/conda/share/jupyter/kernels >&2
+        exit 1
+    fi
+
+    # Disable native kernel auto-creation, so a stray interpreter on PATH
+    # cannot reintroduce a kernel the course does not own.
+    #
+    # This is written to jupyter_config.py, not jupyter_server_config.py.
+    # jupyter_config.py is the app-wide config that every Jupyter Application
+    # subclass loads, including both jupyter_server (which serves JupyterLab)
+    # and the standalone `jupyter kernelspec` CLI (KernelSpecApp). The
+    # kernelspec CLI does not load jupyter_server_config.py, so writing only
+    # that file would leave a phantom "python3" kernel -- backed by
+    # ipykernel's own bundled resources directory -- visible through
+    # `jupyter kernelspec list` even with no kernelspec directory registered
+    # anywhere. jupyter_server already loads jupyter_config.py too, so this
+    # one file covers both paths; writing both would just be duplication.
+    install -d -m 0755 /etc/jupyter
+    cat > /etc/jupyter/jupyter_config.py <<'CFG'
+c = get_config()  # noqa: F821
+c.KernelSpecManager.ensure_native_kernel = False
+CFG
+    chmod 0644 /etc/jupyter/jupyter_config.py
+
+%labels
+    org.harvard.atg.family jupyter-codeserver-ai
+    org.harvard.atg.app    jupyterlab
+
+%help
+    JupyterLab with Claude Code and Codex preinstalled, for HUIT OOD course
+    apps. Launched by the ood-jupyterlab-ai Open OnDemand app; the entrypoint of
+    the underlying Jupyter Docker Stacks image is deliberately not used.
