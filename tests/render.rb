@@ -101,6 +101,18 @@ def submit_binding(doc)
   b
 end
 
+# OOD renders view.html.erb with the connection details as BARE LOCALS -- host,
+# port and password -- not through `context`, and not from the sub-app's form:
+# list, which is why this needs its own binding rather than reusing either of
+# the two above. The values are driven by the environment, the same way
+# FAKE_GROUPS and FAKE_STAGED_ROOT drive the other two doubles.
+def view_binding
+  host     = ENV.fetch('FAKE_VIEW_HOST', 'node1')
+  port     = ENV.fetch('FAKE_VIEW_PORT', '7123')
+  password = ENV.fetch('FAKE_VIEW_PASSWORD', 'view-plaintext-secret')
+  binding
+end
+
 def render_form(path)
   src = File.read(path)
   out = ERB.new(src, trim_mode: '-').result(binding)
@@ -117,18 +129,21 @@ until args.empty?
   when '--form'     then form = args.shift; mode ||= :form
   when '--template' then template = args.shift; mode = :template
   when '--submit'   then template = args.shift; mode = :submit
+  when '--view'     then template = args.shift; mode = :view
   else
     warn "unknown argument: #{flag}"
     exit 64
   end
 end
 
-if form.nil?
-  warn 'usage: render.rb --form <subapp.yml.erb> [--template <file.erb>]'
+# --view is the one mode that needs no sub-app: OOD binds bare connection
+# locals into view.html.erb, never form attributes.
+if form.nil? && mode != :view
+  warn 'usage: render.rb --form <subapp.yml.erb> [--template <file.erb>] | --view <view.html.erb>'
   exit 64
 end
 
-_raw, doc = render_form(form)
+doc = form.nil? ? nil : render_form(form).last
 
 case mode
 when :form
@@ -139,4 +154,6 @@ when :template
   print ERB.new(File.read(template), trim_mode: '-').result(binding)
 when :submit
   print ERB.new(File.read(template), trim_mode: '-').result(submit_binding(doc))
+when :view
+  print ERB.new(File.read(template), trim_mode: '-').result(view_binding)
 end
