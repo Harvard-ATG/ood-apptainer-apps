@@ -32,8 +32,34 @@ attributes:
   course_folder: "/shared/courseSharedFolders/170681outer/170681"
   environment_root: "/shared/courseSharedFolders/170681outer/170681/envs"
   unlisted_attr: "should-not-reach-context"
+  bc_num_hours:
+    value: 2
+    min: 1
+    max: 4
+    step: 1
+  bc_queue: "general"
+  custom_num_cores:
+    widget: "number_field"
+    label: "Number of CPUs"
+    value: 1
+    min: 1
+    max: 2
+    step: 1
+  cpu_min: "1"
+  cpu_max: "2"
+  hours_min: "1"
+  hours_max: "4"
+  mem_per_cpu: "4G"
 form:
   - imagefile
   - course
   - course_folder
   - environment_root
+  - bc_num_hours
+  - bc_queue
+  - custom_num_cores
+  - cpu_min
+  - cpu_max
+  - hours_min
+  - hours_max
+  - mem_per_cpu

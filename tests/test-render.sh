@@ -57,4 +57,39 @@ out=$(FAKE_STAGED_ROOT=/tmp/staged FAKE_GROUPS='canvas170681-999' \
 assert_contains "$out" "root=/tmp/staged"
 
 rm -f /tmp/tpl-ok.erb /tmp/tpl-bad.erb /tmp/tpl-resp.erb /tmp/tpl-sess.erb
+
+it "submit mode exposes form attributes as bare locals"
+cat > /tmp/tpl-submit.erb <<'ERB'
+cores=<%= custom_num_cores %> hours=<%= bc_num_hours %> mem=<%= mem_per_cpu %>
+ERB
+out=$(FAKE_GROUPS='canvas170681-999' ruby render.rb --submit /tmp/tpl-submit.erb --form "$SUB")
+assert_contains "$out" "cores=1 hours=2 mem=4G"
+
+it "submit mode takes the value: of a widget attribute, not the widget hash"
+assert_not_contains "$out" "number_field"
+
+it "submit mode provides blank?, which OOD's siblings all rely on"
+cat > /tmp/tpl-blank.erb <<'ERB'
+blank=<%= bc_queue.blank? %>
+ERB
+out=$(FAKE_GROUPS='canvas170681-999' ruby render.rb --submit /tmp/tpl-blank.erb --form "$SUB")
+assert_contains "$out" "blank=false"
+
+it "submit mode rejects a local that no sub-app defines"
+# Same failure mode the template context already guards: a typo must be loud,
+# not an empty string that becomes a malformed Slurm argument.
+cat > /tmp/tpl-typo.erb <<'ERB'
+oops=<%= custom_num_core %>
+ERB
+out=$(FAKE_GROUPS='canvas170681-999' ruby render.rb --submit /tmp/tpl-typo.erb --form "$SUB" 2>&1)
+assert_contains "$out" "custom_num_core"
+
+it "submit mode rejects an attribute set but not listed under form:"
+cat > /tmp/tpl-unlisted.erb <<'ERB'
+oops=<%= unlisted_attr %>
+ERB
+out=$(FAKE_GROUPS='canvas170681-999' ruby render.rb --submit /tmp/tpl-unlisted.erb --form "$SUB" 2>&1)
+assert_contains "$out" "unlisted_attr"
+
+rm -f /tmp/tpl-submit.erb /tmp/tpl-blank.erb /tmp/tpl-typo.erb /tmp/tpl-unlisted.erb
 finish

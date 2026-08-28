@@ -62,6 +62,36 @@ class FormContext
   end
 end
 
+# ActiveSupport's blank?, which the dashboard provides and every sibling
+# submit.yml.erb uses. Reproduced rather than depended on, so this harness needs
+# no gems beyond the standard library.
+class Object
+  def blank?
+    respond_to?(:empty?) ? !!empty? : !self
+  end
+end
+
+class NilClass
+  def blank?
+    true
+  end
+end
+
+# OOD hands submit.yml.erb the form values as BARE LOCALS, not through context.
+# An attribute whose value is a widget hash arrives as its value: entry, and
+# every value arrives as a string, because it came back from an HTML form.
+def submit_binding(doc)
+  values = {}
+  (doc['form'] || []).each do |key|
+    raw = (doc['attributes'] || {})[key.to_s]
+    raw = raw['value'] if raw.is_a?(Hash)
+    values[key.to_s] = raw.nil? ? '' : raw.to_s
+  end
+  b = binding
+  values.each { |k, v| b.local_variable_set(k.to_sym, v) }
+  b
+end
+
 def render_form(path)
   src = File.read(path)
   out = ERB.new(src, trim_mode: '-').result(binding)
@@ -77,6 +107,7 @@ until args.empty?
   case (flag = args.shift)
   when '--form'     then form = args.shift; mode ||= :form
   when '--template' then template = args.shift; mode = :template
+  when '--submit'   then template = args.shift; mode = :submit
   else
     warn "unknown argument: #{flag}"
     exit 64
@@ -97,4 +128,6 @@ when :template
   context = FormContext.new(doc['attributes'] || {}, doc['form'] || [])
   session = Session.new
   print ERB.new(File.read(template), trim_mode: '-').result(binding)
+when :submit
+  print ERB.new(File.read(template), trim_mode: '-').result(submit_binding(doc))
 end
