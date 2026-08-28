@@ -56,13 +56,42 @@ exts=$(image_exec codeserver sh -c 'ls /opt/code-server/extensions' 2>/dev/null 
 assert_contains "$exts" "anthropic.claude-code"
 assert_contains "$exts" "openai.chatgpt"
 
-it "the installed extension builds are glibc, not musl"
-# The install directory name carries no platform token, so assert on the
-# platform-specific native binaries the vsix ships. An alpine (musl) build
-# ships bin/alpine-*; a glibc build ships bin/linux-*.
-bins=$(image_exec codeserver sh -c 'ls -d /opt/code-server/extensions/*/bin/*/ 2>/dev/null')
-assert_contains "$bins" "linux-"
-assert_not_contains "$bins" "alpine"
+# The install directory name carries no platform token, so the evidence that a
+# build is glibc rather than musl is the platform-specific payload the vsix
+# ships. That payload lives in DIFFERENT places per extension: openai.chatgpt
+# puts native binaries under bin/<platform>/, while Anthropic.claude-code puts
+# them under resources/audio-capture/<platform>/ and resources/native-binary/.
+# A glob over */bin/*/ therefore matches only openai.chatgpt -- the Anthropic
+# extension contributes NOTHING to it, so an alpine build of that extension
+# would satisfy an assert_not_contains "alpine" vacuously. Check each extension
+# on its own and require non-empty evidence from each.
+#
+# Architecture-agnostic: the platform tokens here are linux-aarch64 and
+# arm64-linux, and linux-x64 / x64-linux on the cluster's x86_64, so assert on
+# the shared "linux" token and the absence of "alpine" rather than on an arch.
+for ext in anthropic.claude-code openai.chatgpt; do
+    it "$ext: ships a linux, non-alpine platform payload"
+    plat=$(image_exec codeserver sh -c \
+        "find /opt/code-server/extensions/${ext}-*/ -type d \
+             \( -name '*linux*' -o -name '*alpine*' -o -name '*musl*' \) -printf '%f\n'")
+    # Non-empty first: an empty result would otherwise satisfy the
+    # assert_not_contains below without proving anything.
+    assert_not_contains "|$plat|" "||"
+    assert_contains "$plat" "linux"
+    assert_not_contains "$plat" "alpine"
+done
+
+it "anthropic.claude-code: the embedded native binary links against glibc, not musl"
+# resources/native-binary/ carries no platform token in its NAME, so the scan
+# above cannot speak for it. Read the ELF interpreter recorded in the binary
+# itself: a glibc build names ld-linux-*, a musl build names ld-musl-*. This
+# holds on either architecture (ld-linux-aarch64.so.1, ld-linux-x86-64.so.2).
+interp=$(image_exec codeserver sh -c \
+    "head -c 65536 /opt/code-server/extensions/anthropic.claude-code-*/resources/native-binary/claude \
+     | tr -c '[:print:]' '\n' | grep -E 'ld-(linux|musl)[^ ]*\.so' | head -1")
+assert_contains "$interp" "ld-linux"
+assert_not_contains "$interp" "ld-musl"
+
 
 it "each extension's bundled version is recorded separately from the system CLI"
 # A passing system-CLI policy check is not evidence about an extension's
