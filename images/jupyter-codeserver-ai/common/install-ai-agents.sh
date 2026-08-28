@@ -143,5 +143,11 @@ install -d -m 0755 /etc/ood-ai
 } > /etc/ood-ai/manifest.txt
 chmod 0644 /etc/ood-ai/manifest.txt
 
+# Appended by codeserver.def, which writes this before the recipe runs. Absent
+# in the JupyterLab image, which ships no extensions.
+if [ -f "${BUILD_DIR}/extension-manifest.txt" ]; then
+    cat "${BUILD_DIR}/extension-manifest.txt" >> /etc/ood-ai/manifest.txt
+fi
+
 rm -rf /opt/build
 log "recipe complete"

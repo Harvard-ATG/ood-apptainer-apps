@@ -47,6 +47,44 @@ From: ubuntu:24.04
     install -d -m 0755 /etc/code-server
     install -m 0644 /opt/build/settings.json /etc/code-server/settings.json
 
+    # Extensions, by explicit platform target. An unqualified request resolves
+    # to alpine-arm64; these images are glibc. Each download is verified against
+    # the checksum Open VSX publishes beside it.
+    case "$(uname -m)" in
+        x86_64)  EXT_PLAT=linux-x64   ;;
+        aarch64) EXT_PLAT=linux-arm64 ;;
+    esac
+
+    install -d -m 0755 /etc/ood-ai
+    for spec in "${CLAUDE_EXT_ID}:${CLAUDE_EXT_VERSION}" "${CODEX_EXT_ID}:${CODEX_EXT_VERSION}"; do
+        ext_id="${spec%%:*}"
+        ext_ver="${spec##*:}"
+        ns="${ext_id%%.*}"
+        nm="${ext_id#*.}"
+        base="https://open-vsx.org/api/${ns}/${nm}/${EXT_PLAT}/${ext_ver}/file/${ext_id}-${ext_ver}@${EXT_PLAT}"
+        vsix="/opt/build/${ext_id}-${ext_ver}.vsix"
+
+        curl -fsSL -o "${vsix}" "${base}.vsix"
+        curl -fsSL -o "${vsix}.sha256" "${base}.sha256"
+        # The published .sha256 contains the bare digest, so compose the line
+        # sha256sum -c expects rather than assuming its format.
+        echo "$(cat "${vsix}.sha256")  ${vsix}" | sha256sum -c -
+
+        code-server \
+            --extensions-dir /opt/code-server/extensions \
+            --install-extension "${vsix}"
+    done
+
+    # Record each extension's bundled version. The spec requires this be
+    # inventoried separately from the system CLI, because an extension may ship
+    # its own CLI binary at a different version.
+    for d in /opt/code-server/extensions/*/; do
+        [ -f "${d}package.json" ] || continue
+        nm=$(basename "$d")
+        ver=$(python3 -c "import json;print(json.load(open('${d}package.json')).get('version','unknown'))")
+        echo "extension_${nm}=${ver}"
+    done > /opt/build/extension-manifest.txt
+
     # LAST: the recipe removes /opt/build when it finishes.
     bash /opt/build/install-ai-agents.sh
 

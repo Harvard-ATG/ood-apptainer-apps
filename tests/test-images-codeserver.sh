@@ -51,4 +51,28 @@ assert_failure image_exec codeserver sh -c 'command -v jupyter'
 it "the build staging directory was removed"
 assert_failure image_exec codeserver test -e /opt/build
 
+it "both AI extensions are installed into the immutable directory"
+exts=$(image_exec codeserver sh -c 'ls /opt/code-server/extensions' 2>/dev/null | tr '[:upper:]' '[:lower:]')
+assert_contains "$exts" "anthropic.claude-code"
+assert_contains "$exts" "openai.chatgpt"
+
+it "the installed builds are glibc, not musl"
+# A request without an explicit target platform resolves to alpine-arm64. An
+# alpine build in a glibc image fails at activation, not at install time.
+assert_not_contains "$exts" "alpine"
+
+it "each extension's bundled version is recorded separately from the system CLI"
+# A passing system-CLI policy check is not evidence about an extension's
+# embedded binary; the spec requires both be inventoried.
+man=$(image_exec codeserver cat /etc/ood-ai/manifest.txt 2>/dev/null)
+assert_contains "$man" "extension_"
+
+it "the extension engine requirements are satisfied by the bundled Code version"
+# code-server 4.135.0 bundles Code 1.135.0; the extensions require ^1.94.0 and
+# ^1.96.2. Assert the bundled version rather than trusting the pin.
+assert_contains "$(image_exec codeserver code-server --version 2>/dev/null)" "1.135"
+
+it "no extension was installed into the job-local user-data directory"
+assert_failure image_exec codeserver test -d /state/code-server/extensions
+
 finish
