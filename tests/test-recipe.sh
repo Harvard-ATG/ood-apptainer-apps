@@ -162,4 +162,55 @@ for var in claude_version codex_version node_version uv_version micromamba_versi
     assert_contains "$body" "${var}="
 done
 
+# ---------------------------------------------------------------------------
+# Definition files. Nothing else in the suite reads them: test-lint.sh matches
+# only *.sh and *.env, and a .def is not a shell script -- shellcheck fails on
+# the Apptainer header -- so adding them there is not an option. These static
+# checks need no built image.
+#
+# The base-tag assertion is the load-bearing one. It is the ONLY thing tying
+# the literal tag the build actually consumes to the pin in versions.env, and
+# the expected value is derived from versions.env rather than written out
+# here, so bumping the pin without bumping the definition fails.
+# ---------------------------------------------------------------------------
+IMAGES=../images/jupyter-codeserver-ai
+
+def_base_tag() {
+    # Apptainer keeps any registry in its own `Registry:` header, so the tag is
+    # simply everything after the last colon of the `From:` reference.
+    local ref
+    ref=$(grep -m1 '^From:' "$1" | awk '{print $2}')
+    printf '%s' "${ref##*:}"
+}
+
+for spec in "jupyterlab/jupyterlab.def:JUPYTER_BASE_TAG" \
+            "codeserver/codeserver.def:UBUNTU_TAG"; do
+    def="$IMAGES/${spec%%:*}"
+    pin="${spec##*:}"
+    def_name=$(basename "$def")
+    def_body=$(cat "$def")
+
+    it "$def_name: the literal base tag matches the $pin pin in versions.env"
+    want=$(bash -c ". $COMMON/versions.env && printf '%s' \"\$$pin\"")
+    # Guard the comparison itself: an unset pin would otherwise make an empty
+    # tag match an empty expectation.
+    assert_not_contains "|$want|" "||"
+    assert_eq "$(def_base_tag "$def")" "$want"
+
+    it "$def_name: %post runs under bash, which the recipe's syntax requires"
+    assert_contains "$def_body" "%post -c /bin/bash"
+
+    it "$def_name: does not suppress failures with '|| true'"
+    assert_not_contains "$def_body" "|| true"
+
+    it "$def_name: does not disable errexit to hide a failure"
+    assert_not_contains "$def_body" "set +e"
+
+    it "$def_name: stages from /opt/build, never /tmp"
+    # Apptainer bind-mounts the host /tmp over the container's during %post, so
+    # anything staged there is invisible to the build.
+    assert_contains "$def_body" "/opt/build"
+    assert_not_contains "$def_body" "/tmp/build"
+done
+
 finish
