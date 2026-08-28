@@ -31,6 +31,25 @@ assert_eq "$(stat -c '%a' ../ood/codeserver-ai/template/codeserver.script.sh)" "
 it "jupyterlab launcher execs rather than forks"
 assert_contains "$(cat ../ood/jupyterlab-ai/template/jupyterlab.script.sh)" "exec "
 
+# The env file script.sh.erb writes sets PATH=/usr/local/bin:/usr/bin:/bin and
+# deliberately EXCLUDES /opt/conda/bin, where the image keeps jupyter. That
+# exclusion is not an oversight: students get a terminal inside JupyterLab, and
+# the image's conda bin on their PATH would make `python` resolve to the image
+# interpreter rather than the course environment -- the same "silently lacks
+# every course package" failure the deleted base kernelspec guards against.
+# The consequence is that a bare `exec jupyter lab` either does not resolve at
+# all, or resolves to ${COURSE_ENV}/bin/jupyter once the launcher prepends the
+# course bin, which the launcher's own comment forbids. So the exec target must
+# be an absolute, image-owned path.
+JL_EXEC_TARGET=$(grep -E '^exec ' ../ood/jupyterlab-ai/template/jupyterlab.script.sh \
+    | head -1 | awk '{print $2}')
+
+it "jupyterlab launcher execs an ABSOLUTE path, not a bare command name"
+assert_eq "${JL_EXEC_TARGET:0:1}" "/"
+
+it "jupyterlab launcher execs the image-owned jupyter, which the env-file PATH cannot reach"
+assert_eq "$JL_EXEC_TARGET" "/opt/conda/bin/jupyter"
+
 it "codeserver launcher execs rather than forks"
 assert_contains "$(cat ../ood/codeserver-ai/template/codeserver.script.sh)" "exec "
 
@@ -67,6 +86,12 @@ JL_ARGV=$(cat "$FAKE_JOB_STATE/argv.log" 2>/dev/null || echo "")
 
 it "jupyterlab: the server was invoked"
 assert_contains "$JL_ARGV" "jupyter"
+
+it "jupyterlab: the server was reached by its absolute path under the launch PATH"
+# argv[0] is the name the launcher actually exec'd, recorded from inside the
+# container while PATH was exactly the env-file value above. The stub mirrors
+# the real image's /opt/conda/bin layout for this reason.
+assert_contains "$JL_ARGV" "/opt/conda/bin/jupyter"
 
 it "jupyterlab: binds all interfaces"
 assert_contains "$JL_ARGV" "--ip=0.0.0.0"

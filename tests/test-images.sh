@@ -52,6 +52,20 @@ assert_not_contains "$(image_exec jupyterlab jupyter kernelspec list 2>&1)" "pyt
 it "JupyterLab is present and runnable"
 assert_contains "$(image_exec jupyterlab jupyter lab --version 2>/dev/null)" "4."
 
+it "jupyter exists and is executable at the absolute path the launcher execs"
+# The container environment file sets PATH=/usr/local/bin:/usr/bin:/bin, which
+# deliberately omits /opt/conda/bin (see jupyterlab.script.sh). The launcher
+# therefore execs /opt/conda/bin/jupyter by absolute path; if the base ever
+# moved it, the app would fail to start and every other check here -- which
+# runs under the IMAGE's own PATH, not the launch PATH -- would still pass.
+assert_success image_exec jupyterlab test -x /opt/conda/bin/jupyter
+
+it "the launcher's exec target resolves under the launch PATH, not just the image PATH"
+# Runs `command -v` with exactly the env-file PATH, which is the condition the
+# real session runs under.
+assert_eq "$(image_exec jupyterlab env PATH=/usr/local/bin:/usr/bin:/bin \
+    sh -c 'command -v /opt/conda/bin/jupyter' 2>/dev/null)" "/opt/conda/bin/jupyter"
+
 it "the build staging directory was removed"
 assert_failure image_exec jupyterlab test -e /opt/build
 

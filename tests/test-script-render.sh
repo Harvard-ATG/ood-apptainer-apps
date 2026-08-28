@@ -87,6 +87,17 @@ done
 it "jupyterlab: runs the JupyterLab in-container launcher"
 assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" "jupyterlab.script.sh"
 
+it "jupyterlab: the container PATH deliberately excludes the image's conda bin"
+# Students get a terminal inside JupyterLab. With /opt/conda/bin on PATH,
+# `python` there would resolve to the image interpreter rather than the course
+# environment -- the same "silently lacks every course package" failure the
+# deleted base kernelspec guards against. The cost of that exclusion is that
+# jupyter itself is unreachable by name, which is why jupyterlab.script.sh
+# execs the absolute /opt/conda/bin/jupyter (asserted in test-launchers.sh).
+jl_path=$(grep -E '^ *"PATH=' "$TMP/jupyterlab-ai-script.sh" | head -1)
+assert_contains "$jl_path" "PATH=/usr/local/bin:/usr/bin:/bin"
+assert_not_contains "$jl_path" "/opt/conda/bin"
+
 it "codeserver: runs the code-server in-container launcher"
 assert_contains "$(cat "$TMP/codeserver-ai-script.sh")" "codeserver.script.sh"
 

@@ -31,7 +31,16 @@ log "starting JupyterLab"
 # exec so JupyterLab becomes the container's first process: scancel and
 # walltime expiry then reach it directly and the job releases its allocation
 # promptly. The credential passed here is the SHA1 hash, never the plaintext.
-exec jupyter lab \
+#
+# The ABSOLUTE image-owned path is deliberate, and load-bearing twice over. The
+# environment file's PATH is /usr/local/bin:/usr/bin:/bin, which does NOT
+# include /opt/conda/bin -- so a bare `jupyter` would either not resolve at all
+# or, worse, resolve to ${COURSE_ENV}/bin/jupyter after the export above, which
+# is exactly the external-environment launch the comment at the top of this
+# block rules out. /opt/conda/bin is kept off PATH on purpose: students get a
+# terminal in JupyterLab, and the image's conda bin on their PATH would make
+# `python` resolve to the image interpreter instead of the course environment.
+exec /opt/conda/bin/jupyter lab \
     --ip=0.0.0.0 \
     --port="${MY_JUP_PORT}" \
     --port-retries=0 \

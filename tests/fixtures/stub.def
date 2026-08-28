@@ -28,3 +28,10 @@ SHIM
   chmod 755 /usr/local/bin/_stub-server
   ln -s /usr/local/bin/_stub-server /usr/local/bin/jupyter
   ln -s /usr/local/bin/_stub-server /usr/local/bin/code-server
+
+  # The real JupyterLab image keeps jupyter at /opt/conda/bin and deliberately
+  # keeps that directory OFF the container PATH, so the in-container launcher
+  # execs the absolute path. Mirror that layout here or the launcher cannot
+  # start against the stub either.
+  mkdir -p /opt/conda/bin
+  ln -s /usr/local/bin/_stub-server /opt/conda/bin/jupyter
