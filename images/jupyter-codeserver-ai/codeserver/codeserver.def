@@ -1,0 +1,62 @@
+Bootstrap: docker
+From: ubuntu:24.04
+# The same distribution and release the Jupyter base is built on, so the shared
+# recipe runs in an identical environment in both images. Pinned in
+# common/versions.env as UBUNTU_TAG.
+
+%files
+    common/versions.env             /opt/build/versions.env
+    common/install-ai-agents.sh     /opt/build/install-ai-agents.sh
+    common/claude-code              /opt/build/claude-code
+    common/codex                    /opt/build/codex
+    codeserver/settings.json        /opt/build/settings.json
+
+%post -c /bin/bash
+    set -euo pipefail
+    . /opt/build/versions.env
+
+    # python3 here is for JSON validation and small tooling only. This image
+    # deliberately carries no Jupyter runtime.
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends python3 xz-utils curl ca-certificates
+    rm -rf /var/lib/apt/lists/*
+
+    case "$(uname -m)" in
+        x86_64)  CS_ARCH=amd64 ;;
+        aarch64) CS_ARCH=arm64 ;;
+        *) echo "ERROR: unsupported architecture $(uname -m)" >&2; exit 1 ;;
+    esac
+
+    CS_TARBALL="code-server-${CODE_SERVER_VERSION}-linux-${CS_ARCH}.tar.gz"
+    curl -fsSL -o "/opt/build/${CS_TARBALL}" \
+        "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/${CS_TARBALL}"
+    mkdir -p /usr/local/lib/code-server
+    tar -xzf "/opt/build/${CS_TARBALL}" -C /usr/local/lib/code-server --strip-components=1
+    ln -sf /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server
+
+    # The immutable, image-owned extensions directory. The launcher always passes
+    # --extensions-dir=/opt/code-server/extensions alongside
+    # --user-data-dir=/state/code-server. The two must never be combined: pointing
+    # --extensions-dir at /state would hide these image-owned extensions.
+    install -d -m 0755 /opt/code-server/extensions
+
+    # Seed machine settings. The launcher copies these into the job-local
+    # user-data directory and adds the course interpreter path, which cannot be
+    # baked into a shared image.
+    install -d -m 0755 /etc/code-server
+    install -m 0644 /opt/build/settings.json /etc/code-server/settings.json
+
+    # LAST: the recipe removes /opt/build when it finishes.
+    bash /opt/build/install-ai-agents.sh
+
+%environment
+    export PATH=/usr/local/bin:$PATH
+
+%labels
+    org.harvard.atg.family jupyter-codeserver-ai
+    org.harvard.atg.app    codeserver
+
+%help
+    code-server with Claude Code and Codex preinstalled, for HUIT OOD course
+    apps. Launched by the ood-codeserver-ai Open OnDemand app.
