@@ -98,11 +98,11 @@ curl -fsSL -o "${BUILD_DIR}/${UV_TARBALL}" "${UV_BASE}/${UV_TARBALL}"
 curl -fsSL -o "${BUILD_DIR}/${UV_TARBALL}.sha256" "${UV_BASE}/${UV_TARBALL}.sha256"
 ( cd "${BUILD_DIR}" && sha256sum -c "${UV_TARBALL}.sha256" )
 tar -xzf "${BUILD_DIR}/${UV_TARBALL}" -C /usr/local/bin --strip-components=1 \
-    "${UV_TARGET}/uv" "${UV_TARGET}/uvx"
+    "uv-${UV_TARGET}/uv" "uv-${UV_TARGET}/uvx"
 
 log "installing micromamba ${MICROMAMBA_VERSION}"
 curl -fsSL "https://micro.mamba.pm/api/micromamba/linux-${MM_ARCH}/${MICROMAMBA_VERSION}" \
-    | tar -xj -C /usr/local --strip-components=1 bin/micromamba
+    | tar -xj -C /usr/local bin/micromamba
 
 # ---------------------------------------------------------------------------
 # Governance files. Contents map 1:1 onto /etc/claude-code/ and /etc/codex/.
