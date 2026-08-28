@@ -75,15 +75,39 @@ From: ubuntu:24.04
             --install-extension "${vsix}"
     done
 
-    # Record each extension's bundled version. The spec requires this be
-    # inventoried separately from the system CLI, because an extension may ship
-    # its own CLI binary at a different version.
+    # Record each extension's marketplace version, from its package.json.
     for d in /opt/code-server/extensions/*/; do
         [ -f "${d}package.json" ] || continue
         nm=$(basename "$d")
         ver=$(python3 -c "import json;print(json.load(open('${d}package.json')).get('version','unknown'))")
         echo "extension_${nm}=${ver}"
     done > /opt/build/extension-manifest.txt
+
+    # The versions above describe the extension PACKAGE. The Codex extension
+    # also ships its OWN codex CLI binary, and it legitimately differs from the
+    # system CLI -- the extension has shipped a prerelease while the pin was on
+    # a stable release. That bundled binary is what the extension actually runs,
+    # so the Codex policy floor applies to it in its own right and the spec
+    # requires it be inventoried SEPARATELY, under its own manifest key.
+    #
+    # Its version is only knowable by executing it: nothing in the vsix records
+    # it. The bin directory is named for the kernel architecture (linux-aarch64,
+    # linux-x64), which is not the platform token used to fetch the vsix, so
+    # locate it rather than composing the path.
+    embedded_codex=$(find /opt/code-server/extensions -type f -name codex -path '*/bin/*' | head -1)
+    if [ -z "${embedded_codex}" ]; then
+        echo "ERROR: the Codex extension shipped no bundled codex binary" >&2
+        exit 1
+    fi
+    if [ ! -x "${embedded_codex}" ]; then
+        echo "ERROR: the bundled codex binary is not executable: ${embedded_codex}" >&2
+        exit 1
+    fi
+    # A plain assignment, with no stderr suppression: if the binary cannot run,
+    # set -e aborts the build loudly instead of recording a blank field.
+    embedded_codex_version=$("${embedded_codex}" --version)
+    echo "extension_embedded_codex=${embedded_codex_version}" \
+        >> /opt/build/extension-manifest.txt
 
     # LAST: the recipe removes /opt/build when it finishes.
     bash /opt/build/install-ai-agents.sh

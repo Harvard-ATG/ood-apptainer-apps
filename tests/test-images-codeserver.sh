@@ -92,12 +92,35 @@ interp=$(image_exec codeserver sh -c \
 assert_contains "$interp" "ld-linux"
 assert_not_contains "$interp" "ld-musl"
 
+man=$(image_exec codeserver cat /etc/ood-ai/manifest.txt 2>/dev/null)
 
-it "each extension's bundled version is recorded separately from the system CLI"
+it "each extension's marketplace version is recorded separately from the system CLI"
 # A passing system-CLI policy check is not evidence about an extension's
 # embedded binary; the spec requires both be inventoried.
-man=$(image_exec codeserver cat /etc/ood-ai/manifest.txt 2>/dev/null)
-assert_contains "$man" "extension_"
+assert_contains "$man" "extension_anthropic.claude-code"
+assert_contains "$man" "extension_openai.chatgpt"
+
+it "the Codex extension's BUNDLED cli binary is inventoried under its own key"
+# The marketplace version above is the extension package's version, which says
+# nothing about the codex binary the extension bundles and runs. The two
+# genuinely differ, so the bundled one is recorded by executing it at build
+# time under a distinct key.
+assert_contains "$man" "extension_embedded_codex="
+
+it "the extension's bundled Codex satisfies the 0.138.0 permission-profile floor"
+# NOT equality with CODEX_VERSION: the bundled binary legitimately differs from
+# the system CLI. What must hold is the security floor. Below 0.138.0 Codex
+# ignores allowed_permission_profiles and managed default_permissions outright,
+# which REMOVES the restriction rather than degrading it -- so a bundled binary
+# under the floor is unpoliced no matter what the system CLI is pinned to.
+# Same sort -V floor comparison the pins use in test-recipe.sh.
+embedded=$(printf '%s' "$man" | grep '^extension_embedded_codex=' | head -1)
+embedded_ver=$(printf '%s' "$embedded" | sed -e 's/^.*=//' -e 's/^codex-cli //')
+# Guard the comparison: an absent key would make sort -V compare against an
+# empty string and pass vacuously.
+assert_not_contains "|$embedded_ver|" "||"
+lowest=$(printf '0.138.0\n%s\n' "$embedded_ver" | sort -V | head -1)
+assert_eq "$lowest" "0.138.0"
 
 it "the extension engine requirements are satisfied by the bundled Code version"
 # code-server 4.135.0 bundles Code 1.135.0; the extensions require ^1.94.0 and
