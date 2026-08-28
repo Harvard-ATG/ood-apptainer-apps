@@ -124,6 +124,7 @@ run_launcher codeserver.script.sh \
     "CODE_SERVER_PORT=7124" \
     "PASSWORD=plaintext-must-not-reach-argv" \
     "COURSE_ENV=$FAKE_ENV_ROOT/default" \
+    "COURSE_ENV_STATUS=ok" \
     "STUB_PORT=7124" \
     "STATE_DIR=/state" \
     "PATH=/usr/local/bin:/usr/bin:/bin"
@@ -170,6 +171,9 @@ it "codeserver: workspace trust is disabled -- the single most security-relevant
 assert_contains "$(cat "$SETTINGS_FILE")" '"security.workspace.trust.enabled": false'
 
 it "codeserver: points the Python extension at the course interpreter"
-assert_contains "$(cat "$SETTINGS_FILE")" "\"python.defaultInterpreterPath\": \"$FAKE_ENV_ROOT/default/bin/python\""
+# The settings file is a MERGE of the image's seed and generated keys (see
+# tests/test-settings-merge.sh for that coverage); here we only need proof the
+# interpreter key survives an end-to-end launch through the real launcher.
+assert_contains "$(cat "$SETTINGS_FILE")" '"python.defaultInterpreterPath"'
 
 finish

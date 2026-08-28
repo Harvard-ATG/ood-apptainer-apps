@@ -72,4 +72,12 @@ assert_failure image_exec jupyterlab test -e /opt/build
 it "the AI surface manifest was recorded"
 assert_success image_exec jupyterlab test -f /etc/ood-ai/manifest.txt
 
+it "the image's own interpreter exists, is executable, and can import ipykernel"
+# This is the interpreter that backs the fallback "image-python" kernel
+# jupyterlab.script.sh generates unconditionally (see write_kernel /
+# IMAGE_PYTHON). Nothing else in this suite checks that the shipped image
+# actually has a working interpreter at that path.
+assert_success image_exec jupyterlab test -x /opt/conda/bin/python
+assert_success image_exec jupyterlab /opt/conda/bin/python -c 'import ipykernel'
+
 finish

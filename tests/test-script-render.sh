@@ -74,6 +74,12 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: sets PYTHONNOUSERSITE in the environment file"
     assert_contains "$body" "PYTHONNOUSERSITE=1"
 
+    it "$app: writes COURSE_ENV_STATUS into the container environment file"
+    # Nothing currently proves this key survives rendering; both the
+    # in-container launcher's degraded-session logic and the merge in
+    # codeserver.script.sh depend on it arriving at all.
+    assert_contains "$body" '"COURSE_ENV_STATUS=${COURSE_ENV_STATUS}"'
+
     it "$app: sets DISABLE_AUTOUPDATER in the environment file"
     assert_contains "$body" "DISABLE_AUTOUPDATER=1"
 
@@ -100,5 +106,8 @@ assert_not_contains "$jl_path" "/opt/conda/bin"
 
 it "codeserver: runs the code-server in-container launcher"
 assert_contains "$(cat "$TMP/codeserver-ai-script.sh")" "codeserver.script.sh"
+
+it "codeserver: does NOT write COURSE_ENV_STAGING -- staging is Jupyter-only"
+assert_not_contains "$(cat "$TMP/codeserver-ai-script.sh")" "COURSE_ENV_STAGING"
 
 finish
