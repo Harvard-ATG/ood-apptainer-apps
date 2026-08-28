@@ -526,6 +526,61 @@ assert_contains "$JOB_SCRIPT" "bash \"${BCE_REPO}/scripts/provision-course-env.s
 it "the job's apptainer invocation names the resolved image"
 assert_contains "$JOB_SCRIPT" "$ROOT/bce-images-canonical/ok.sif"
 
+# --- The provisioning job's containment. This is the one path in the system
+# that runs as an administrator with WRITE access to a course folder, and
+# because it reimplements the Apptainer invocation inline rather than calling
+# lc_run it inherits none of the launch path's containment coverage. Every
+# flag below was individually deletable with this suite green.
+
+it "the job's apptainer invocation carries --containall"
+assert_contains "$JOB_SCRIPT" "--containall"
+
+it "the job's apptainer invocation carries --cleanenv"
+assert_contains "$JOB_SCRIPT" "--cleanenv"
+
+it "the job suppresses Apptainer's own default mounts, in full"
+# Asserted as the whole list, not as the flag name: dropping any single
+# element of it -- hostfs and bind-paths especially -- reopens a host mount
+# the launch path is careful to close, and a check for "--no-mount" alone
+# would not notice.
+assert_contains "$JOB_SCRIPT" "--no-mount home,cwd,tmp,hostfs,bind-paths"
+
+it "the job invokes apptainer through the sterile env -i prefix"
+# Two assertions because the prefix has two halves that fail independently:
+# the call that populates LC_STERILE, and the expansion that actually uses it.
+# Deleting either leaves the other looking correct.
+assert_contains "$JOB_SCRIPT" "lc_sterile_prefix"
+
+it "the job expands the sterile prefix at the apptainer call site"
+assert_contains "$JOB_SCRIPT" "LC_STERILE[@]"
+
+it "the job binds the course folder at its own path"
+# The bind COUNT above catches an extra bind; only identity assertions catch a
+# substituted one. Swapping the scratch bind for -B /tmp:/tmp, for instance,
+# keeps the count at three.
+assert_contains "$JOB_SCRIPT" "-B \"${DERIVED_COURSE_FOLDER}:${DERIVED_COURSE_FOLDER}\""
+
+it "the job binds the provisioning scratch directory, and nothing else as scratch"
+BCE_PROVISION_SCRATCH="$ROOT/bce-scratch/provisioning/am115"
+assert_contains "$JOB_SCRIPT" "-B \"${BCE_PROVISION_SCRATCH}:${BCE_PROVISION_SCRATCH}\""
+
+it "the job binds the repository READ-ONLY"
+# :ro is what stops a provisioning run from writing to the deploy clone it was
+# launched from. It is three characters at the end of a line and its loss is
+# invisible in every other assertion here.
+assert_contains "$JOB_SCRIPT" "-B \"${BCE_REPO}:${BCE_REPO}:ro\""
+
+it "sbatch is told where to write the job's output"
+# The failure message naming the log path is asserted below, and that message
+# is a string: it stays correct-looking with the flag gone. Without the flag
+# Slurm writes slurm-<jobid>.out into whatever directory the administrator
+# submitted from, while the error message points at a path that does not
+# exist -- discovered after a ten-minute solve.
+assert_contains "$SBATCH_ARGV" "--output=$ROOT/bce-scratch/provisioning/am115/build.log"
+
+it "sbatch is given the job name the smoke checklist documents"
+assert_contains "$SBATCH_ARGV" "--job-name=build-course-env-am115"
+
 it "it fails when the course specification directory is missing"
 assert_contains "$(build_course_env --course nosuch --canvas-id 1 --image i.sif)" "nosuch"
 
