@@ -41,9 +41,17 @@ outside this repository — see **Deployment** below.
 bash tests/run-all.sh
 ```
 
-The suite has no dependencies beyond the OS, `ruby`, and optionally
-`shellcheck`, so it runs both here and on a cluster compute node as part of
-sign-in QA.
+The suite needs `ruby` and `jq`, plus GNU coreutils; `shellcheck` and
+`apptainer` are the only optional pieces (the lint suite skips itself when
+`shellcheck` is absent, and the image-backed suites skip when their image is
+not built). Nothing else is required, so it runs both here and on a cluster
+compute node as part of sign-in QA.
+
+**`jq` is a hard dependency of the release gate, not just of the test suite.**
+`scripts/render-forms.sh` and `scripts/build-course-env.sh` both parse rendered
+sub-apps with it, and the smoke checklist asks an administrator to run
+`render-forms.sh` on a cluster node. Both fail loudly rather than silently
+without it, but confirm `jq` is on `PATH` before starting a release.
 
 `tests/render.rb` stands in for OOD's template binding. It builds the `context`
 double from the sub-app's `form:` list only, because that is what OOD actually
@@ -71,6 +79,28 @@ image or a login-node shell — real symlink resolution, Canvas group
 membership, and deployment file permissions among them. Run it once per course
 per term, and again after any image or launch-template change; see
 **Deployment** below for when it fits into a release.
+
+## Known-pending image work
+
+Three image-side items are known to be missing from the images this repository
+launches. They are tracked outside this repository; they are recorded here so
+that a smoke tester does not spend a morning chasing an expected failure.
+
+- **`ms-python.python`** (Open VSX) is not installed in the code-server image.
+  `codeserver.script.sh` writes `python.defaultInterpreterPath` into the
+  generated settings, but no extension in the current image reads it — so
+  `scripts/smoke-test-checklist.md` **Environment and workflow item 7**
+  ("code-server selects the same `<COURSE_ENV>/bin/python`") cannot pass, and
+  **Sign-in and tooling item 4** can only be checked for the extensions that
+  are actually present.
+- **`ms-toolsai.jupyter`** (Open VSX) is not installed in the code-server
+  image, so notebooks do not open natively there.
+- **`jupyterlab_widgets`** is not installed in the JupyterLab image. Both
+  course environments list `ipywidgets`, and its widget output cannot render in
+  JupyterLab without the matching front-end package.
+
+The launcher behaviour these depend on is already in place and tested, so
+adding them to the image definitions is the whole of the remaining work.
 
 ## After editing the shared library
 

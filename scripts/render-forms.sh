@@ -11,6 +11,11 @@
 #
 # Depends only on ood/, scripts/ and tests/ (specifically tests/render.rb),
 # so it works unmodified from a deploy clone that carries the whole repo.
+#
+# REQUIRES `ruby` AND `jq`. Both are hard dependencies -- ruby renders every
+# sub-app and template, jq reads the rendered result -- and both are checked
+# for below, before any work starts, so a node that is missing one is told
+# which one rather than shown forty unrelated check failures.
 set -uo pipefail
 
 this_script="scripts/render-forms.sh"
@@ -25,6 +30,15 @@ fail() {  # <path> <reason>
     FAILED=$((FAILED + 1))
     printf '[%s] FAIL %s: %s\n' "$this_script" "$1" "$2"
 }
+
+# Dependency preflight. Deliberately BEFORE anything that shells out, so it
+# still reports the real problem on a node whose PATH is missing more than jq.
+for tool in ruby jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        printf '[%s] FATAL: %s is required but was not found on PATH\n' "$this_script" "$tool" >&2
+        exit 1
+    fi
+done
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RENDER_RB="$REPO_ROOT/tests/render.rb"

@@ -19,16 +19,39 @@ status=$?
 it "it checked all four sub-apps"
 assert_contains "$out" "4 sub-app"
 
-it "an enrolled student sees every course sub-app they belong to"
-assert_contains "$out" "am115"
-
 # Each negative case is a real regression this family has shipped.
-broken() {  # <name> <sed expression>
+broken_file() {  # <path under the repo copy> <sed expression>
     rm -rf "$TMP/repo"; mkdir -p "$TMP/repo"
     cp -a ood scripts tests "$TMP/repo/"
-    sed -i "$2" "$TMP/repo/ood/jupyterlab-ai/local/cs1090a.yml.erb"
+    sed -i "$2" "$TMP/repo/$1"
     ( cd "$TMP/repo" && ./scripts/render-forms.sh 2>&1 )
 }
+
+broken() {  # <name> <sed expression>, applied to cs1090a under jupyterlab-ai
+    broken_file ood/jupyterlab-ai/local/cs1090a.yml.erb "$2"
+}
+
+it "the gate's access-control checks reach EVERY sub-app, not just the one every other case mutates"
+# Replaces a vacuous `assert_contains "$out" "am115"` that ran under this
+# name: the literal am115 appears in render-forms.sh's own "checking ..."
+# progress line, printed before any check runs, so it passed even with am115
+# denying every enrolled student. Line 20's "4 sub-app" already covers
+# discovery; what was actually uncovered is whether the checks APPLY to a
+# sub-app no other negative case touches. This mutates a different course
+# AND a different app directory, and swaps only the enabledGroups entry --
+# `course` stays 172566, so the folder-agreement checks are unaffected and
+# only access control can fire.
+am115_locked=$(broken_file ood/codeserver-ai/local/am115.yml.erb 's/"172566" # APMTH 115/"111111" # APMTH 115/')
+am115_locked_status=$?
+assert_contains "$am115_locked" "access control"
+
+it "...and names the sub-app it rejected"
+assert_contains "$am115_locked" "codeserver-ai/local/am115.yml.erb"
+
+it "...and blocks the release by exiting nonzero"
+# The gate is a release gate: a diagnostic it prints while still exiting zero
+# is not a gate. None of the other negative cases in this file check status.
+assert_eq "$([ "$am115_locked_status" -ne 0 ] && echo nonzero || echo zero)" "nonzero"
 
 it "a missing access-control header is release-blocking"
 assert_contains "$(broken nocluster 's/^cluster: .*/cluster: "*"/')" "access control"
@@ -144,5 +167,26 @@ broken_missing_course() {
 
 it "a course present under one app but missing from the other fails"
 assert_contains "$(broken_missing_course)" "both apps"
+
+# --- The gate's own dependencies. jq was an undeclared hard dependency: the
+# README claimed the suite and gate needed nothing beyond the OS, ruby and
+# optionally shellcheck, while render-forms.sh cannot read a rendered sub-app
+# without jq. Without the preflight, a cluster node missing it produces a wall
+# of access-control failures naming the wrong problem.
+BASH_BIN=$(command -v bash)
+mkdir -p "$TMP/nobin"
+NODEPS_OUT=$(PATH="$TMP/nobin" "$BASH_BIN" scripts/render-forms.sh 2>&1)
+NODEPS_STATUS=$?
+
+it "the gate names its missing dependency instead of failing every check"
+assert_contains "$NODEPS_OUT" "is required but was not found on PATH"
+
+it "the gate exits nonzero when a dependency is missing"
+assert_eq "$([ "$NODEPS_STATUS" -ne 0 ] && echo nonzero || echo zero)" "nonzero"
+
+it "the gate does not claim to have checked any sub-app without its dependencies"
+# The consequence that matters: a gate that reported "4 sub-app(s), 0
+# failure(s)" from a node with no jq would be worse than one that crashed.
+assert_not_contains "$NODEPS_OUT" "sub-app(s)"
 
 finish

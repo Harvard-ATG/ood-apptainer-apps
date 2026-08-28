@@ -12,6 +12,10 @@
 # is what lets it return the build's real result: without --wait the
 # administrator gets a job id and an apparent success for a build that may
 # fail ten minutes later with nobody watching.
+#
+# REQUIRES `jq` (it reads the rendered sub-apps in step 4's agreement check).
+# `ruby` is optional here -- without it the agreement check is skipped with a
+# warning -- but without jq that check fails rather than being skipped.
 set -uo pipefail
 
 this_script="scripts/build-course-env.sh"
