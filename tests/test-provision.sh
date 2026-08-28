@@ -529,12 +529,48 @@ assert_contains "$JOB_SCRIPT" "$ROOT/bce-images-canonical/ok.sif"
 it "it fails when the course specification directory is missing"
 assert_contains "$(build_course_env --course nosuch --canvas-id 1 --image i.sif)" "nosuch"
 
-it "it fails when the deployed image is not readable"
-assert_contains "$(build_course_env --course am115 --canvas-id 172566 --image absent.sif)" "image"
+it "it fails when the resolved image does not exist"
+# Pinned to "not found" (lc_select_image's own diagnostic), distinct from the
+# readability failure below -- a bare "image" substring would pass for either
+# failure and catch neither specifically.
+assert_contains "$(build_course_env --course am115 --canvas-id 172566 --image absent.sif)" "not found"
+
+it "it fails when the resolved image exists but is not readable"
+# Distinct from the nonexistent-file case above: this constructs a REAL file
+# at the resolved path and strips read permission, so only the explicit
+# `[ -r "$IMAGE_PATH" ]` check (not lc_select_image's existence check) can be
+# what catches it.
+: > "$ROOT/bce-images-canonical/unreadable.sif"
+chmod 000 "$ROOT/bce-images-canonical/unreadable.sif"
+UNREADABLE_OUT=$(build_course_env --course am115 --canvas-id 172566 --image unreadable.sif)
+chmod 644 "$ROOT/bce-images-canonical/unreadable.sif"
+assert_contains "$UNREADABLE_OUT" "not readable"
 
 it "it propagates the job's failure to its own exit status"
 SBATCH_EXIT=7 build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
 assert_eq "$?" "7"
+
+it "a failed build names the Slurm log path so an administrator knows where to look"
+# The exit-status test above redirects all output to /dev/null and checks
+# only $?, so it would not notice this text vanishing. The submission message
+# ALSO names the log path unconditionally (both on success and failure), so a
+# bare check for the path anywhere in the output would still pass even if the
+# failure branch's own restatement were deleted -- pin this to the actual
+# failure phrasing plus the path together, which only the failure branch
+# emits.
+FAILED_OUT=$(SBATCH_EXIT=7 build_course_env --course am115 --canvas-id 172566 --image ok.sif)
+assert_contains "$FAILED_OUT" "see Slurm log at $ROOT/bce-scratch/provisioning/am115/build.log"
+
+it "--rebuild is reflected in the generated job script"
+build_course_env --course am115 --canvas-id 172566 --image ok.sif --rebuild >/dev/null
+assert_contains "$JOB_SCRIPT" "--rebuild"
+
+it "--rebuild is absent from the generated job script when not passed"
+# An administrator's explicit rebuild request silently dropped (or, in the
+# other direction, an implicit rebuild nobody asked for) is a real footgun in
+# either direction -- assert both.
+build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
+assert_not_contains "$JOB_SCRIPT" "--rebuild"
 
 it "--dry-run prints the job script without submitting"
 : > "$SBATCH_ARGV_LOG"
