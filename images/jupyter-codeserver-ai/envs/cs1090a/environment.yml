@@ -1,0 +1,64 @@
+# CS1090A (COMPSCI 1090A, Canvas 170681) - INITIAL course environment.
+#
+# This records what was provisioned. The live environment is maintained by
+# teaching staff with micromamba and may drift from this file by design.
+#
+# Kernel-side packages only. JupyterLab and its server/frontend extensions live
+# in the image, not here: see the design's server/kernel package split. The
+# course also requested nodejs; it is deliberately absent because the image
+# already ships Node 24.20.0 (which both AI CLIs were validated against) and
+# the launcher prepends this prefix's bin/ to PATH, so a second Node here
+# would shadow the image's.
+#
+# lime, wikipedia, eli5, and dtreeviz are listed under pip below rather than
+# here: this file was written without resolving names against conda-forge, and
+# none of the four could be confirmed as an existing conda-forge feedstock
+# from documentation alone. Provisioning resolves the conda dependencies for
+# real; if any of the packages below also turn out to be unavailable, move
+# them into pip: too and note the move here.
+name: cs1090a
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - ipykernel
+  - ipython
+  - ipywidgets
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - statsmodels
+  - tqdm
+  - requests
+  - beautifulsoup4
+  - lxml
+  - httpx
+  - aiohttp
+  - pyarrow
+  - openpyxl
+  - duckdb
+  - polars
+  - plotly
+  - nbformat
+  - pymc
+  - arviz
+  - xgboost
+  - imbalanced-learn
+  - graphviz
+  - python-graphviz
+  - prettytable
+  - pip
+  - pip:
+      # The upper bound is a course requirement: staff must consult ATG before
+      # crossing it.
+      - otter-grader>=7,<8
+      - nbopen
+      # Not confirmed as conda-forge feedstocks; installed via pip until
+      # verified otherwise. See the header note above.
+      - lime
+      - wikipedia
+      - eli5
+      - dtreeviz

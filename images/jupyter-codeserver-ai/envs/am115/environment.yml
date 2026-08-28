@@ -1,0 +1,29 @@
+# AM115 (APMTH 115, Canvas 172566) - INITIAL course environment.
+#
+# This records what was provisioned. The live environment is maintained by
+# teaching staff with micromamba and may drift from this file by design.
+#
+# Kernel-side packages only. JupyterLab and its server/frontend extensions live
+# in the image, not here: see the design's server/kernel package split. The
+# course also requested nodejs; it is deliberately absent because the image
+# already ships Node 24.20.0 (which both AI CLIs were validated against) and
+# the launcher prepends this prefix's bin/ to PATH, so a second Node here
+# would shadow the image's.
+name: am115
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - ipykernel
+  - ipywidgets
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - polars
+  - openpyxl
+  - tqdm
+  - nbformat
+  - git
+  - pytest
+  - ruff
