@@ -11,7 +11,7 @@
       "denyRead": [
         "~/.ssh",
         "~/.config/gh",
-        "~/.config/ood-huit/codex",
+        "~/.codex",
         "~/.aws",
         "~/.gnupg",
         "~/.netrc"

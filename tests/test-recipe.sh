@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# SC2016: many assertions below match the LITERAL ${...} text of the image
+# definition and policy files, so those expressions must NOT expand here. Every
+# occurrence in this file is deliberate. A file-level directive has to precede
+# every command, so it sits immediately after the shebang.
+# shellcheck disable=SC2016
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
@@ -82,8 +87,8 @@ done
 
 it "filesystem denyRead mirrors Codex's asymmetry: denies the OTHER agent's credentials"
 dr=$(python3 -c "import json;print(' '.join(json.load(open('$CC/managed-settings.json'))['sandbox']['filesystem']['denyRead']))")
-assert_contains "$dr" "ood-huit/codex"
-assert_not_contains "$dr" "ood-huit/claude"
+assert_contains "$dr" "/.codex"
+assert_not_contains "$dr" "/.claude"
 
 CX="$COMMON/codex"
 
@@ -114,7 +119,7 @@ assert_eq "$(python3 -c "import tomllib;print(len(tomllib.load(open('$CX/require
 
 it "deny_read covers ssh, the GitHub token and the other agent's credential path"
 dr=$(python3 -c "import tomllib;print(' '.join(tomllib.load(open('$CX/requirements.toml','rb'))['permissions']['filesystem']['deny_read']))")
-for p in ".ssh" "gh" "ood-huit/claude"; do
+for p in ".ssh" "gh" "/.claude"; do
     assert_contains "$dr" "$p"
 done
 
@@ -122,7 +127,7 @@ it "deny_read does NOT deny Codex its own credentials, which would break login"
 # The mirror image of the Claude Code assertion above. Each agent denies only
 # the OTHER agent's credential path; a regression that added Codex's own path
 # here would break Codex login and, asserting presence only, pass silently.
-assert_not_contains "$dr" "ood-huit/codex"
+assert_not_contains "$dr" "/.codex"
 
 it "deny_read uses no ./-relative entries, which the schema rejects"
 assert_not_contains "$dr" "./"
@@ -225,5 +230,75 @@ for spec in "jupyterlab/jupyterlab.def:JUPYTER_BASE_TAG" \
     assert_contains "$def_body" "/opt/build"
     assert_not_contains "$def_body" "/tmp/build"
 done
+
+# --- the course-requested editor and JupyterLab extensions -------------------
+
+V="$COMMON/versions.env"
+CSDEF="$IMAGES/codeserver/codeserver.def"
+JLDEF="$IMAGES/jupyterlab/jupyterlab.def"
+
+it "the three course editor extensions are pinned to exact versions"
+# Exact, not floors: editor extensions are pinned together with code-server
+# because compatibility depends on the pair.
+for var in PYTHON_EXT_VERSION JUPYTER_EXT_VERSION RENDERERS_EXT_VERSION; do
+    assert_success grep -qE "^${var}=\"[0-9]+(\.[0-9]+)+\"$" "$V"
+done
+
+it "ms-python.python is pinned, because it is what reads defaultInterpreterPath"
+assert_contains "$(cat "$V")" 'PYTHON_EXT_ID="ms-python.python"'
+
+it "codeserver.def installs all five extensions from versions.env"
+body=$(cat "$CSDEF")
+for var in CLAUDE_EXT_ID CODEX_EXT_ID PYTHON_EXT_ID JUPYTER_EXT_ID RENDERERS_EXT_ID; do
+    assert_contains "$body" "\${${var}}"
+done
+
+it "codeserver.def distinguishes per-platform extensions from universal ones"
+# The two AI extensions MUST name a platform -- unqualified resolves to an
+# alpine/musl build. The three course extensions publish only a universal
+# build, for which the qualified URL 404s. Getting either wrong fails the build,
+# but in opposite directions.
+assert_contains "$body" ':platform"'
+assert_contains "$body" ':universal"'
+
+it "the universal download URL omits the platform segment and the @platform suffix"
+assert_contains "$body" '${ns}/${nm}/${ext_ver}/file/${ext_id}-${ext_ver}"'
+
+it "jupyterlab.def sources versions.env before the recipe deletes it"
+jl=$(cat "$JLDEF")
+src_pos=$(printf '%s' "$jl" | grep -n '^\s*\. /opt/build/versions.env' | head -1 | cut -d: -f1)
+# Anchor on the INVOCATION, not any mention: the %files section stages the
+# recipe several lines earlier, and matching that made this compare against the
+# wrong line entirely.
+recipe_pos=$(printf '%s' "$jl" | grep -n '^\s*bash /opt/build/install-ai-agents.sh' | head -1 | cut -d: -f1)
+assert_eq "$([ "$src_pos" -lt "$recipe_pos" ] && echo before || echo after)" "before"
+
+it "jupyterlab.def writes its manifest fragment before the recipe absorbs it"
+# The redirect that WRITES it, not the comment that describes it.
+frag_pos=$(printf '%s' "$jl" | grep -n '^\s*} > /opt/build/extension-manifest.txt' | head -1 | cut -d: -f1)
+assert_eq "$([ "$frag_pos" -lt "$recipe_pos" ] && echo before || echo after)" "before"
+
+it "jupyterlab.def pins JupyterLab to the base image tag during the install"
+# Otherwise the solver may move JupyterLab to satisfy an extension, silently
+# changing the one thing the base tag exists to fix.
+assert_contains "$jl" 'JUPYTERLAB_VERSION="${JUPYTER_BASE_TAG#lab-}"'
+assert_contains "$jl" '"jupyterlab=${JUPYTERLAB_VERSION}"'
+
+it "jupyterlab.def FAILS the build if JupyterLab moved anyway"
+assert_contains "$jl" "JupyterLab moved from"
+
+it "jupyterlab.def installs the front-end half of ipywidgets"
+# Both course environments list ipywidgets for the kernel side; without this
+# package its widget output renders as nothing.
+assert_contains "$jl" "jupyterlab_widgets"
+
+it "notebook-intelligence is floored, not pinned, per both course requests"
+assert_success grep -qE '^NOTEBOOK_INTELLIGENCE_FLOOR="[0-9]+(\.[0-9]+)+"$' "$V"
+assert_contains "$jl" 'notebook-intelligence>=${NOTEBOOK_INTELLIGENCE_FLOOR}'
+
+it "JupyterLab itself is NOT pinned back to silence a compatibility warning"
+# Both requesters tested notebook-intelligence against JupyterLab 4.6, confirmed
+# it works, and asked explicitly that JupyterLab not be moved back.
+assert_contains "$(cat "$V")" 'JUPYTER_BASE_TAG="lab-4.6.3"'
 
 finish

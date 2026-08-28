@@ -14,9 +14,84 @@ From: jupyter/minimal-notebook:lab-4.6.3
 %post -c /bin/bash
     set -euo pipefail
 
+    # Every pin comes from the one file that holds them. The recipe sources this
+    # too, but in its own process, so the values do not reach this shell.
+    . /opt/build/versions.env
+
+    # The course-requested JupyterLab server and front-end extensions. These
+    # extend the SERVER process, so they belong here rather than in a course
+    # environment, which owns only what a notebook imports.
+    #
+    # This runs BEFORE the recipe, and writes its manifest fragment to the same
+    # path code-server's definition uses: the recipe appends
+    # /opt/build/extension-manifest.txt to /etc/ood-ai/manifest.txt and then
+    # deletes /opt/build entirely. Anything that needs versions.env, or wants to
+    # appear in the manifest, has to happen first.
+    #
+    # JupyterLab's own version is pinned to the base image tag for the install
+    # and asserted afterwards. Without that pin the solver is free to move
+    # JupyterLab to satisfy an extension, silently changing the very thing the
+    # base tag exists to fix. Both course requesters explicitly asked that
+    # JupyterLab NOT be pinned back to silence notebook-intelligence's
+    # compatibility warning, so moving it in EITHER direction is a defect.
+    JUPYTERLAB_VERSION="${JUPYTER_BASE_TAG#lab-}"
+
+    mamba install --yes --quiet -c conda-forge \
+        "jupyterlab=${JUPYTERLAB_VERSION}" \
+        jupyterlab-git \
+        nbdime \
+        jupytext \
+        jupyterlab_widgets
+    mamba clean --all --yes
+
+    # pip-only, and floored rather than pinned, per both course requests.
+    pip install --no-cache-dir \
+        "notebook-intelligence>=${NOTEBOOK_INTELLIGENCE_FLOOR}" \
+        "${MCP_CONSTRAINT}"
+
+    # notebook-intelligence calls tiktoken.encoding_for_model('gpt-4o') at MODULE
+    # IMPORT time (extension.py:81), which downloads o200k_base.tiktoken from an
+    # Azure blob host. Left alone that makes a network round trip part of every
+    # JupyterLab startup, and makes the extension dead on any node that cannot
+    # reach that host. Download it once here instead, into a world-readable
+    # location the launcher points TIKTOKEN_CACHE_DIR at.
+    #
+    # Deliberately not best-effort: a silent failure here would restore the
+    # runtime download without anyone noticing, which is the whole problem.
+    install -d -m 0755 /opt/tiktoken
+    TIKTOKEN_CACHE_DIR=/opt/tiktoken /opt/conda/bin/python -c \
+        "import tiktoken; tiktoken.encoding_for_model('gpt-4o')"
+    chmod -R a+rX /opt/tiktoken
+    if [ -z "$(ls -A /opt/tiktoken)" ]; then
+        echo "ERROR: the tiktoken cache is empty; the encoding was not baked in" >&2
+        exit 1
+    fi
+
+    installed_lab=$(/opt/conda/bin/jupyter lab --version)
+    if [ "${installed_lab}" != "${JUPYTERLAB_VERSION}" ]; then
+        echo "ERROR: JupyterLab moved from ${JUPYTERLAB_VERSION} to ${installed_lab} while installing extensions" >&2
+        exit 1
+    fi
+
+    # Record what the solver actually resolved. The specs above are one exact
+    # pin and a floor; this is the only place the built image states what it
+    # really contains.
+    {
+        echo "extension_jupyterlab=${installed_lab}"
+        for pkg in jupyterlab-git nbdime jupytext jupyterlab-widgets notebook-intelligence; do
+            ver=$(/opt/conda/bin/python -c "import importlib.metadata as m;print(m.version('${pkg}'))") || {
+                echo "ERROR: ${pkg} is not installed after the extension install step" >&2
+                exit 1
+            }
+            echo "extension_${pkg}=${ver}"
+        done
+    } > /opt/build/extension-manifest.txt
+    cat /opt/build/extension-manifest.txt
+
     # The recipe runs as root here. It installs the agents, the environment
     # managers, and the governance files.
     bash /opt/build/install-ai-agents.sh
+
 
     # Remove the base's own kernelspec. The stack registers a python3 /
     # "Python 3 (ipykernel)" kernelspec pointing at the image's conda

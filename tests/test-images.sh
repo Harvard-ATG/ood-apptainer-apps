@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# SC2016: probe snippets are passed to the container as strings, so any $(...)
+# or $VAR in them MUST expand inside the container and not here. Every
+# occurrence in this file is deliberate. A file-level directive has to precede
+# every command, so it sits immediately after the shebang.
+# shellcheck disable=SC2016
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
@@ -68,6 +73,43 @@ assert_eq "$(image_exec jupyterlab env PATH=/usr/local/bin:/usr/bin:/bin \
 
 it "the build staging directory was removed"
 assert_failure image_exec jupyterlab test -e /opt/build
+
+it "every course-requested JupyterLab extension is importable"
+# These extend the SERVER process, so they must live in the image rather than a
+# course environment.
+for mod in jupyterlab_git nbdime jupytext jupyterlab_widgets notebook_intelligence; do
+    it "  ${mod} imports in the image interpreter"
+    assert_success image_exec jupyterlab /opt/conda/bin/python -c "import ${mod}"
+done
+
+it "the tiktoken encoding is baked into the image"
+# notebook-intelligence downloads it at MODULE IMPORT time, so without this the
+# extension makes a network round trip part of every session start, and is dead
+# on any node that cannot reach the Azure blob host.
+assert_success image_exec jupyterlab sh -c '[ -n "$(ls -A /opt/tiktoken)" ]'
+
+it "the baked tiktoken cache is world-readable"
+# The launcher points TIKTOKEN_CACHE_DIR here, and a session runs as the student.
+assert_eq "$(image_exec jupyterlab stat -c '%a' /opt/tiktoken 2>/dev/null)" "755"
+
+it "jupyterlab_widgets is present, so ipywidgets output can render"
+# The course environments supply the kernel half; without this front-end half a
+# notebook using ipywidgets renders nothing at all.
+assert_success image_exec jupyterlab /opt/conda/bin/python -c 'import jupyterlab_widgets'
+
+it "installing the extensions did not move JupyterLab off the base image tag"
+# shellcheck disable=SC1091
+. ../images/jupyter-codeserver-ai/common/versions.env
+assert_eq "$(image_exec jupyterlab /opt/conda/bin/jupyter lab --version 2>/dev/null | tr -d '\r')" \
+          "${JUPYTER_BASE_TAG#lab-}"
+
+it "the resolved extension versions are recorded in the manifest"
+# The specs are one exact pin and a floor, so the built image is the only
+# statement of what it actually contains.
+jlman=$(image_exec jupyterlab cat /etc/ood-ai/manifest.txt 2>/dev/null)
+for pkg in jupyterlab-git nbdime jupytext jupyterlab-widgets notebook-intelligence; do
+    assert_contains "$jlman" "extension_${pkg}="
+done
 
 it "the AI surface manifest was recorded"
 assert_success image_exec jupyterlab test -f /etc/ood-ai/manifest.txt

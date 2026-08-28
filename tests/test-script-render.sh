@@ -71,6 +71,12 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: creates state directories with the shared helper"
     assert_contains "$body" "lc_make_state_dirs"
 
+    if [ "$app" = jupyterlab-ai ]; then
+        it "$app: points tiktoken at the cache baked into the image"
+        # Without this the encoding is re-downloaded on every session start.
+        assert_contains "$body" "TIKTOKEN_CACHE_DIR=/opt/tiktoken"
+    fi
+
     it "$app: sets PYTHONNOUSERSITE in the environment file"
     assert_contains "$body" "PYTHONNOUSERSITE=1"
 

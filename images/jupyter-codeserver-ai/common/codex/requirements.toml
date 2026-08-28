@@ -43,7 +43,7 @@ default_permissions = ":workspace"
 deny_read = [
   "~/.ssh",
   "~/.config/gh",
-  "~/.config/ood-huit/claude",
+  "~/.claude",
   "~/.aws",
   "~/.gnupg",
   "~/.netrc",

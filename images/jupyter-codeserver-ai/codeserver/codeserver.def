@@ -47,21 +47,38 @@ From: ubuntu:24.04
     install -d -m 0755 /etc/code-server
     install -m 0644 /opt/build/settings.json /etc/code-server/settings.json
 
-    # Extensions, by explicit platform target. An unqualified request resolves
-    # to alpine-arm64; these images are glibc. Each download is verified against
-    # the checksum Open VSX publishes beside it.
+    # Extensions. Each download is verified against the checksum Open VSX
+    # publishes beside it. EXT_PLAT is used only by the per-platform ones --
+    # see the form selection below.
     case "$(uname -m)" in
         x86_64)  EXT_PLAT=linux-x64   ;;
         aarch64) EXT_PLAT=linux-arm64 ;;
     esac
 
     install -d -m 0755 /etc/ood-ai
-    for spec in "${CLAUDE_EXT_ID}:${CLAUDE_EXT_VERSION}" "${CODEX_EXT_ID}:${CODEX_EXT_VERSION}"; do
+    # Each spec is id:version:form. The two AI extensions publish per-platform
+    # builds and MUST name one -- an unqualified request for those resolves to
+    # alpine-arm64, a musl build that cannot run here. The three course
+    # extensions publish a single universal build and have no platform variant
+    # to ask for, so the qualified URL 404s for them. The form is therefore
+    # per-extension, not a property of this image.
+    for spec in \
+        "${CLAUDE_EXT_ID}:${CLAUDE_EXT_VERSION}:platform" \
+        "${CODEX_EXT_ID}:${CODEX_EXT_VERSION}:platform" \
+        "${PYTHON_EXT_ID}:${PYTHON_EXT_VERSION}:universal" \
+        "${JUPYTER_EXT_ID}:${JUPYTER_EXT_VERSION}:universal" \
+        "${RENDERERS_EXT_ID}:${RENDERERS_EXT_VERSION}:universal"; do
         ext_id="${spec%%:*}"
-        ext_ver="${spec##*:}"
+        rest="${spec#*:}"
+        ext_ver="${rest%%:*}"
+        ext_form="${rest##*:}"
         ns="${ext_id%%.*}"
         nm="${ext_id#*.}"
-        base="https://open-vsx.org/api/${ns}/${nm}/${EXT_PLAT}/${ext_ver}/file/${ext_id}-${ext_ver}@${EXT_PLAT}"
+        if [ "${ext_form}" = platform ]; then
+            base="https://open-vsx.org/api/${ns}/${nm}/${EXT_PLAT}/${ext_ver}/file/${ext_id}-${ext_ver}@${EXT_PLAT}"
+        else
+            base="https://open-vsx.org/api/${ns}/${nm}/${ext_ver}/file/${ext_id}-${ext_ver}"
+        fi
         vsix="/opt/build/${ext_id}-${ext_ver}.vsix"
 
         curl -fsSL -o "${vsix}" "${base}.vsix"

@@ -56,6 +56,24 @@ exts=$(image_exec codeserver sh -c 'ls /opt/code-server/extensions' 2>/dev/null 
 assert_contains "$exts" "anthropic.claude-code"
 assert_contains "$exts" "openai.chatgpt"
 
+it "all three course extensions are installed too"
+# ms-python.python is the load-bearing one: it is what reads the
+# python.defaultInterpreterPath the launcher generates per session. Without it
+# that setting is inert and smoke-checklist "code-server selects the same
+# interpreter" cannot pass.
+assert_contains "$exts" "ms-python.python"
+assert_contains "$exts" "ms-toolsai.jupyter"
+assert_contains "$exts" "ms-toolsai.jupyter-renderers"
+
+it "each course extension is installed at the version versions.env pins"
+# shellcheck disable=SC1091
+. ../images/jupyter-codeserver-ai/common/versions.env
+for pair in "ms-python.python:$PYTHON_EXT_VERSION" \
+            "ms-toolsai.jupyter:$JUPYTER_EXT_VERSION" \
+            "ms-toolsai.jupyter-renderers:$RENDERERS_EXT_VERSION"; do
+    assert_contains "$exts" "${pair%%:*}-${pair##*:}"
+done
+
 # The install directory name carries no platform token, so the evidence that a
 # build is glibc rather than musl is the platform-specific payload the vsix
 # ships. That payload lives in DIFFERENT places per extension: openai.chatgpt
@@ -99,6 +117,10 @@ it "each extension's marketplace version is recorded separately from the system 
 # embedded binary; the spec requires both be inventoried.
 assert_contains "$man" "extension_anthropic.claude-code"
 assert_contains "$man" "extension_openai.chatgpt"
+
+it "the course extensions are inventoried in the manifest as well"
+assert_contains "$man" "extension_ms-python.python"
+assert_contains "$man" "extension_ms-toolsai.jupyter"
 
 it "the Codex extension's BUNDLED cli binary is inventoried under its own key"
 # The marketplace version above is the extension package's version, which says
