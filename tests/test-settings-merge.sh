@@ -118,9 +118,19 @@ printf '{}' > "$VALID_SEED_OVERRIDE"
 # the corrupt seed below would only prove the bind mount broke the launch,
 # not that the unparseable JSON did.
 launch ok "$VALID_SEED_OVERRIDE"
+BODY=$(cat "$SETTINGS" 2>/dev/null || echo "")
 
 it "a syntactically valid seed override still lets the launch succeed"
 assert_success test -s "$FAKE_JOB_STATE/argv.log"
+
+it "the override actually replaced the image's seed, not a silent no-op"
+# VALID_SEED_OVERRIDE is an empty {}, so telemetry.telemetryLevel -- present
+# only in the image's own /etc/code-server/settings.json -- must be absent
+# from the merged result. If the bind mount above were a no-op, the launcher
+# would still read the image's real seed and this key would still be
+# present, so the previous assertion alone would pass identically whether or
+# not the override took effect.
+assert_not_contains "$BODY" '"telemetry.telemetryLevel"'
 
 it "an unparseable image settings seed fails the launch rather than degrading silently"
 assert_failure launch ok "$CORRUPT_SEED"
