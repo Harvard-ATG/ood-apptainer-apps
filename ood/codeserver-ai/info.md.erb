@@ -2,11 +2,13 @@ Code Server is starting in an Apptainer container on a compute node. Sessions
 usually start within a minute, but a busy queue can delay one for several
 minutes before this card turns green.
 
-The integrated terminal has the course environment on `PATH`, so course
-packages are available without any extra setup. Workspace trust is disabled
-so the Claude Code extension loads automatically. Files under `/scratch` are
-fast working space and are purged on a schedule; keep anything you need in
-your home directory.
+When the course environment is available, the integrated terminal has it on
+`PATH` and course packages need no extra setup. If it is missing or not
+working, the session still starts without it and the session log says so —
+course packages will not import until teaching staff repair it. Workspace
+trust is disabled so the Claude Code extension loads automatically. Files
+under `/scratch` are fast working space and are purged on a schedule; keep
+anything you need in your home directory.
 
 Claude Code and Codex are preinstalled. Sign in with your own account in a
 terminal — no shared credentials are built into the image.

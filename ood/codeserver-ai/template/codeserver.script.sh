@@ -20,6 +20,24 @@ USER_DATA_DIR=/state/code-server
 SEED_SETTINGS=/etc/code-server/settings.json
 mkdir -p "${USER_DATA_DIR}/User" || { log "ERROR: cannot create ${USER_DATA_DIR}/User"; exit 1; }
 
+# usable <prefix> -- does this prefix's interpreter actually RUN?
+#
+# Run here, in the container, rather than on the host: the compute node and the
+# image do not share a libc, so a prefix that runs on one can fail on the other.
+# That is why lc_classify_course_env deliberately stops at `[ -x ]` and leaves
+# this question to the launcher.
+#
+# `[ -x ]` alone is not the question. A default/bin/python that exists and is
+# executable but dies on invocation is the shape of a course environment broken
+# by a failed staff update, and pointing python.defaultInterpreterPath at it is
+# worse than leaving VS Code to its own discovery: the setting LOOKS configured,
+# so nothing looks wrong. Unlike the JupyterLab side this asks nothing about
+# ipykernel -- code-server's Python extension has no such requirement -- so
+# `-c 'import sys'` is the whole question.
+usable() {
+    [ -n "$1" ] && [ -x "$1/bin/python" ] && "$1/bin/python" -c 'import sys' >/dev/null 2>&1
+}
+
 # The course interpreter cannot be baked into a shared image, so it is generated
 # here -- but the image's own settings must survive. The two are MERGED, with
 # the generated keys winning. Copying the seed and then rewriting the same path
@@ -30,7 +48,7 @@ mkdir -p "${USER_DATA_DIR}/User" || { log "ERROR: cannot create ${USER_DATA_DIR}
 # node rather than python3 or jq: the code-server image is Ubuntu-based and has
 # neither, while node is guaranteed -- it is what both AI CLIs run on.
 COURSE_PYTHON=""
-if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && [ -x "${COURSE_ENV}/bin/python" ]; then
+if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
     COURSE_PYTHON="${COURSE_ENV}/bin/python"
     # Prepend the course environment so the integrated terminal resolves
     # `python` and the course's own entry points. Note what this means: the
@@ -40,9 +58,11 @@ if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && [ -x "${COURSE_ENV}/bin/python" ]
     # prepending a directory that does not work helps nobody.
     export PATH="${COURSE_ENV}/bin:${PATH}"
 else
-    log "WARNING: no course environment (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
-    log "WARNING: the session will START, but python.defaultInterpreterPath is not set and"
-    log "WARNING: course packages are unavailable until the environment is provisioned."
+    log "WARNING: no usable course environment (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
+    log "WARNING: the session will START, but python.defaultInterpreterPath is NOT set, the"
+    log "WARNING: terminal PATH does not include the course environment, and course packages"
+    log "WARNING: are unavailable until the environment is provisioned or repaired by teaching"
+    log "WARNING: staff or ATG."
 fi
 
 node -e '

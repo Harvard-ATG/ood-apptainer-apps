@@ -70,14 +70,19 @@ it "codeserver launcher execs the image-owned code-server"
 # /usr/local/lib/code-server, and the stub image mirrors that path.
 assert_eq "$CS_EXEC_TARGET" "/usr/local/bin/code-server"
 
+# The launcher's own stdout+stderr, kept rather than discarded: a degraded
+# session is required to SAY SO, and that is only assertable if the log survives.
+LAUNCH_LOG="$FIXTURE_ROOT/launch.log"
+
 run_launcher() {
     local script="$1"; shift
     local envf="$FIXTURE_ROOT/env.list"
     lc_write_env_file "$envf" "$@" || return 1
     lc_build_binds "$FAKE_COURSE_ROOT" "$FAKE_SCRATCH" "$FAKE_JOB_STATE" "$FAKE_JOB_TMP" "$FAKE_SSH_MASK"
+    : > "$LAUNCH_LOG"
     # The stub server holds a socket, so run it detached and stop it once it has
     # recorded its argv.
-    lc_run "$APB" "$IMAGE" "$envf" "$STAGED/$script" >/dev/null 2>&1 &
+    lc_run "$APB" "$IMAGE" "$envf" "$STAGED/$script" >"$LAUNCH_LOG" 2>&1 &
     local pid=$!
     local waited=0
     while [ ! -s "$FAKE_JOB_STATE/argv.log" ] && [ "$waited" -lt 100 ]; do
@@ -228,5 +233,55 @@ it "codeserver: the image-owned server ran instead"
 # Not merely the absence of the intruder: a launcher that failed to start
 # anything at all would also satisfy the assertion above.
 assert_contains "$CS_PLANTED_ARGV" "/usr/local/bin/code-server"
+
+# --- code-server, State C: the interpreter is present and executable but does
+# not RUN.
+#
+# This is the shape of a course environment broken by a failed staff update.
+# The host side cannot answer it -- the compute node and the image do not share
+# a libc -- so lc_classify_course_env still reports status=ok and the launcher
+# is the only place the question is real. Pointing
+# python.defaultInterpreterPath at an interpreter that dies is worse than not
+# setting it: the setting looks configured, so nothing looks wrong. The
+# JupyterLab side has probed for this from the start; this asserts code-server
+# now behaves the same way.
+#
+# Runs LAST in this file: fixture_break_course_python replaces the fixture's
+# course interpreter for good.
+rm -f "$FAKE_JOB_STATE/argv.log" "$FAKE_JOB_STATE/server.pid" "$SETTINGS_FILE"
+fixture_break_course_python
+run_launcher codeserver.script.sh \
+    "CODE_SERVER_PORT=7126" \
+    "PASSWORD=plaintext-must-not-reach-argv" \
+    "COURSE_ENV=$FAKE_ENV_ROOT/default" \
+    "COURSE_ENV_STATUS=ok" \
+    "STUB_PORT=7126" \
+    "STATE_DIR=/state" \
+    "PATH=/usr/local/bin:/usr/bin:/bin"
+CS_BROKEN_SETTINGS=$(cat "$SETTINGS_FILE" 2>/dev/null || echo "")
+CS_BROKEN_LOG=$(cat "$LAUNCH_LOG" 2>/dev/null || echo "")
+
+it "codeserver: a broken course interpreter does NOT get written as the default interpreter"
+# The consequence, not the log line: `[ -x ]` alone passes here, so this is
+# the assertion that fails if the probe is removed.
+assert_not_contains "$CS_BROKEN_SETTINGS" "python.defaultInterpreterPath"
+
+it "codeserver: the degraded session still generates settings, merged with the image seed"
+# Degrading must not mean writing nothing: the image's own keys still have to
+# reach the session, or a broken course environment silently costs the student
+# workspace trust as well.
+assert_contains "$CS_BROKEN_SETTINGS" '"security.workspace.trust.enabled": false'
+
+it "codeserver: the degraded session still starts"
+assert_contains "$(cat "$FAKE_JOB_STATE/argv.log" 2>/dev/null || echo "")" "/usr/local/bin/code-server"
+
+it "codeserver: the degraded session SAYS SO in the session log"
+# The silent half of the divergence: code-server used to configure the broken
+# interpreter and log nothing at all, so the only symptom a student or staff
+# member ever saw was Python not working.
+assert_contains "$CS_BROKEN_LOG" "no usable course environment"
+
+it "codeserver: the degraded session log states the interpreter key was not set"
+assert_contains "$CS_BROKEN_LOG" "python.defaultInterpreterPath is NOT set"
 
 finish
