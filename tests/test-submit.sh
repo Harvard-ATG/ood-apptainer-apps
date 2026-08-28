@@ -55,6 +55,36 @@ for S in "${SUBMIT_TEMPLATES[@]}"; do
     it "${app}: does not multiply memory by the CPU count"
     assert_not_contains "$out" '"--mem-per-cpu=8G"'
 
+    # The above is a dead assertion on its own: the fixture's CPU count is 1,
+    # so a bug that multiplies memory by the CPU count renders 4 * 1 = 4G,
+    # indistinguishable from correct output. It only catches a hardcoded
+    # doubling to 8G. The multiplication bug is visible ONLY when the CPU
+    # count is not 1, so exercise that directly. cpu_max is "2", so 2 is
+    # in-bounds without editing the max.
+    out_multi_cpu=$(render_submit "$S" "$(edited_subapp 's/^    value: 1$/    value: 2/')")
+
+    it "${app}: with a CPU count of 2, still passes the validated CPU count"
+    assert_contains "$out_multi_cpu" '"--cpus-per-task=2"'
+
+    it "${app}: with a CPU count of 2, mem-per-cpu is still 4G, not multiplied"
+    assert_contains "$out_multi_cpu" '"--mem-per-cpu=4G"'
+
+    it "${app}: with a CPU count of 2, mem-per-cpu is not doubled to 8G"
+    assert_not_contains "$out_multi_cpu" '"--mem-per-cpu=8G"'
+
+    # The unit-present assertion above only checks that a pre-supplied "4G"
+    # survives rendering -- it never posts a value missing its unit, so a
+    # regex change that makes the unit optional (e.g. dropping the trailing
+    # ? in [KMGT]?) passes unnoticed. Post both a bare number and a
+    # lowercase unit and confirm each is rejected.
+    it "${app}: rejects mem_per_cpu with no unit at all"
+    out=$(render_submit "$S" "$(edited_subapp 's/^  mem_per_cpu: "4G"$/  mem_per_cpu: "4"/')")
+    assert_contains "$out" "must carry a unit"
+
+    it "${app}: rejects mem_per_cpu with a lowercase unit"
+    out=$(render_submit "$S" "$(edited_subapp 's/^  mem_per_cpu: "4G"$/  mem_per_cpu: "4g"/')")
+    assert_contains "$out" "must carry a unit"
+
     it "${app}: rejects a CPU count above the sub-app maximum"
     out=$(render_submit "$S" "$(edited_subapp 's/^    value: 1$/    value: 99/')")
     assert_contains "$out" "Number of CPUs"
