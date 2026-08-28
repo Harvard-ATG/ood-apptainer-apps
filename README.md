@@ -1,7 +1,7 @@
 # ood-apptainer-apps
 
 Apptainer-based Open OnDemand interactive apps with preinstalled AI coding
-agents, for Harvard ATG. Two parent apps — JupyterLab and code-server — serve
+agents, for HUIT OOD. Two parent apps — JupyterLab and code-server — serve
 per-course sub-apps.
 
 The design specification and implementation plans are maintained by Harvard ATG
