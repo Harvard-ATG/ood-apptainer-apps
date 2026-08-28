@@ -1,0 +1,25 @@
+<%
+  require 'digest'
+
+  # code-server authenticates with a cookie whose name is hardcoded upstream as
+  # "key", holding the SHA-256 of the password. The form post alone is not
+  # enough: without the cookie the session bounces back to the login page.
+  cookie_value = Digest::SHA256.hexdigest(password)
+%>
+
+<script type="text/javascript">
+(function () {
+  let date = new Date();
+  date.setTime(date.getTime() + (7 * 24 * 60 * 60 * 1000));
+  let expires = "expires=" + date.toUTCString();
+  let cookiePath = "path=/rnode/" + "<%= host.to_s %>" + "/" + "<%= port.to_s %>/";
+  document.cookie = `key=<%= cookie_value %>;${expires};${cookiePath};secure`;
+})();
+</script>
+
+<form action="/rnode/<%= host %>/<%= port %>/login?to=" method="post" target="_blank">
+  <input type="hidden" name="password" value="<%= password %>">
+  <button class="btn btn-primary" type="submit">
+    <i class="fa fa-cogs"></i> Connect to Code Server
+  </button>
+</form>

@@ -1,0 +1,8 @@
+# This app is published only through its course sub-apps. Every form value --
+# access control, resources, image, course folder and environment root -- lives
+# in a file under local/, one per course, each of them complete and independent.
+#
+# Deliberately empty: a key here would apply to every course at once, and the
+# sub-apps do not inherit from one another. To add a course, copy
+# examples/course.yml.erb into local/ and fill it in, then run
+# scripts/render-forms.sh.

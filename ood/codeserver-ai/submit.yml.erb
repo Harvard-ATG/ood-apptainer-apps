@@ -1,0 +1,45 @@
+# Job submission configuration.
+#
+# Every bound below comes from the sub-app, as a form:-listed hidden attribute,
+# because this file is shared by all of a parent app's courses and must not
+# carry one course's limits.
+#
+# Widget min/max are user-interface guidance, not a boundary: a hand-posted form
+# arrives here with any value at all. Validation therefore happens on this side
+# and REJECTS rather than clamps, so an out-of-range request is visible to the
+# person who made it instead of being quietly rewritten.
+---
+<%-
+  def whole_number(value, label)
+    text = value.to_s.strip
+    raise "#{label} must be a whole number (got #{value.inspect})" unless text =~ /\A[0-9]+\z/
+    text.to_i
+  end
+
+  cores = whole_number(custom_num_cores, "Number of CPUs")
+  hours = whole_number(bc_num_hours, "Number of hours")
+  min_cores = whole_number(cpu_min, "cpu_min")
+  max_cores = whole_number(cpu_max, "cpu_max")
+  min_hours = whole_number(hours_min, "hours_min")
+  max_hours = whole_number(hours_max, "hours_max")
+
+  unless cores.between?(min_cores, max_cores)
+    raise "Number of CPUs must be between #{min_cores} and #{max_cores} (got #{cores})"
+  end
+  unless hours.between?(min_hours, max_hours)
+    raise "Number of hours must be between #{min_hours} and #{max_hours} (got #{hours})"
+  end
+
+  # The unit is load-bearing: Slurm reads a bare --mem-per-cpu=4 as 4 MB.
+  memory = mem_per_cpu.to_s.strip
+  raise "mem_per_cpu must carry a unit, e.g. 4G (got #{memory.inspect})" unless memory =~ /\A[0-9]+[KMGT]\z/
+-%>
+
+batch_connect:
+  template: "basic"
+
+script:
+  native:
+    - "--nodes=1"
+    - "--cpus-per-task=<%= cores %>"
+    - "--mem-per-cpu=<%= memory %>"

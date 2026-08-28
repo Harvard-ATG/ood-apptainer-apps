@@ -1,0 +1,14 @@
+name: Code Server
+category: Interactive Apps
+subcategory: Servers
+role: batch_connect
+description: |
+  Code Server (VS Code in the browser) with the [Claude Code] and [Codex]
+  coding agents preinstalled, running in an [Apptainer] container.
+
+  Students reach this app through their own course's session card, which
+  carries the course name; this parent entry is not launched directly.
+
+  [Claude Code]: https://www.anthropic.com/claude-code
+  [Codex]: https://openai.com/codex/
+  [Apptainer]: https://apptainer.org/

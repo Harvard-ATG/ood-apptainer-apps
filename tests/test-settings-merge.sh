@@ -26,8 +26,12 @@ chmod 755 "$STAGED/codeserver.script.sh"
 
 SETTINGS="$FAKE_JOB_STATE/code-server/User/settings.json"
 
+# <seed_override>, when given, is bind-mounted over the image's own
+# /etc/code-server/settings.json -- the only way a test can present a
+# different seed to the launcher without rebuilding the shared stub image
+# that every other suite in this file also relies on.
 launch() {
-    local status="$1"
+    local status="$1" seed_override="${2:-}"
     rm -rf "$FAKE_JOB_STATE/code-server" "$FAKE_JOB_STATE/argv.log"
     local envf="$FIXTURE_ROOT/env.list"
     lc_write_env_file "$envf" \
@@ -39,6 +43,9 @@ launch() {
         "STATE_DIR=/state" \
         "PATH=/usr/local/bin:/usr/bin:/bin" || return 1
     lc_build_binds "$FAKE_COURSE_ROOT" "$FAKE_SCRATCH" "$FAKE_JOB_STATE" "$FAKE_JOB_TMP" "$FAKE_SSH_MASK"
+    if [ -n "$seed_override" ]; then
+        LC_BINDS+=( -B "${seed_override}:/etc/code-server/settings.json" )
+    fi
     lc_run "$APB" "$IMAGE" "$envf" "$STAGED/codeserver.script.sh" >/dev/null 2>&1 &
     local pid=$! waited=0
     while [ ! -s "$FAKE_JOB_STATE/argv.log" ] && [ "$waited" -lt 100 ]; do
@@ -88,5 +95,37 @@ assert_contains "$BODY" '"security.workspace.trust.enabled": false'
 
 it "a degraded session still carries the image's own keys"
 assert_contains "$BODY" '"telemetry.telemetryLevel"'
+
+it "the degraded settings file is also valid JSON"
+# The parse-success assertion above only ever ran against the healthy-launch
+# file. A merge bug that corrupts output only when the interpreter key is
+# absent (e.g. a dangling comma left by conditionally omitting a key) would
+# pass every check above and go unnoticed without this.
+assert_success node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$SETTINGS"
+
+# --- corrupt seed: unparseable /etc/code-server/settings.json --------------
+# /etc/code-server/settings.json is image-owned and immutable; an unparseable
+# one means a broken image. Failing the launch outright beats a session that
+# looks fine with every image-level setting silently gone.
+CORRUPT_SEED="$FIXTURE_ROOT/corrupt-settings.json"
+printf '{ this is not valid json' > "$CORRUPT_SEED"
+
+VALID_SEED_OVERRIDE="$FIXTURE_ROOT/valid-settings.json"
+printf '{}' > "$VALID_SEED_OVERRIDE"
+
+# Positive control: the override mechanism itself (a bind mount standing in
+# for the image's seed) must be able to succeed. Without this, a failure on
+# the corrupt seed below would only prove the bind mount broke the launch,
+# not that the unparseable JSON did.
+launch ok "$VALID_SEED_OVERRIDE"
+
+it "a syntactically valid seed override still lets the launch succeed"
+assert_success test -s "$FAKE_JOB_STATE/argv.log"
+
+it "an unparseable image settings seed fails the launch rather than degrading silently"
+assert_failure launch ok "$CORRUPT_SEED"
+
+it "an unparseable seed leaves no settings file behind"
+assert_failure test -e "$SETTINGS"
 
 finish

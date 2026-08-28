@@ -23,13 +23,12 @@ edited_subapp() {
 }
 
 # Discover the submit templates that actually exist rather than hardcoding the
-# app list -- the codeserver parent app is a later task and does not exist
-# yet. The count assertion below keeps this honest: discovery with nothing
+# app list. The count assertion below keeps this honest: discovery with nothing
 # counting the finds would silently cover zero apps.
 mapfile -t SUBMIT_TEMPLATES < <(find ../ood -mindepth 2 -maxdepth 2 -name 'submit.yml.erb' | sort)
 
-it "discovers exactly one submit template (jupyterlab; codeserver lands in the next task)"
-assert_eq "${#SUBMIT_TEMPLATES[@]}" "1"
+it "discovers exactly two submit templates (jupyterlab, codeserver)"
+assert_eq "${#SUBMIT_TEMPLATES[@]}" "2"
 
 for S in "${SUBMIT_TEMPLATES[@]}"; do
     app=$(basename "$(dirname "$S")")
