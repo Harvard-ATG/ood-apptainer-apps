@@ -18,8 +18,17 @@ set -uo pipefail
 this_script="scripts/provision-course-env.sh"
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+LAUNCH_COMMON="${REPO_ROOT}/ood/lib/launch-common.sh"
+# Guarded explicitly: without this, a missing file falls through into two more
+# "command not found" errors (lc_validate_under, then lc_log inside fail()
+# itself) before exiting 1 as a side effect rather than a decision. Neither
+# fail() nor lc_log exist yet at this point, so this uses a plain echo.
+if [ ! -r "$LAUNCH_COMMON" ]; then
+    echo "ERROR: ${this_script}: cannot read shared library '${LAUNCH_COMMON}'" >&2
+    exit 1
+fi
 # shellcheck source=../ood/lib/launch-common.sh
-. "${REPO_ROOT}/ood/lib/launch-common.sh"
+. "$LAUNCH_COMMON"
 
 fail() {
     lc_log "ERROR: $1"
@@ -250,10 +259,22 @@ TEMPLATE="${REPO_ROOT}/images/jupyter-codeserver-ai/envs/README-template.md"
 # (the environment.yml headers, e.g. "AM115").
 COURSE_NAME=$(basename "$SPEC" | tr '[:lower:]' '[:upper:]')
 
+# The template's HTML comments are addressed to whoever renders it (this
+# script), not to the teaching staff member who will actually read the
+# shipped file -- so they are stripped, not merely substituted around. This
+# is safe specifically because the template's own substitution contract
+# guarantees every comment opens with "<!--" alone on its line and closes
+# with "-->" alone on its line, never nested: a sed range delete on those
+# exact markers removes each block in full. If a future template ever put
+# comment markers on a line with other content, this would need to become a
+# real HTML-comment-aware pass (or the contract text could move to a sibling
+# file that is never rendered) -- but for this template it is not fragile.
 sed -e "s/__COURSE__/${COURSE_NAME}/g" \
     -e "s/__MANAGER__/${MANAGER}/g" \
     -e "s/__PYTHON_VERSION__/${PY_VERSION}/g" \
-    "$TEMPLATE" > "${RESOLVED_ENV_ROOT}/README.md" \
+    "$TEMPLATE" \
+    | sed '/<!--/,/-->/d' \
+    > "${RESOLVED_ENV_ROOT}/README.md" \
     || fail "cannot render README to '${RESOLVED_ENV_ROOT}/README.md'"
 
 # An optional per-course note, appended verbatim when the spec carries one.

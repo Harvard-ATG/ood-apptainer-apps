@@ -26,12 +26,11 @@ teaching staff clone or read.
 
 ## What owns `default`
 
-`default` is a **__MANAGER__**-managed environment. (`__MANAGER__` is always
-either `micromamba` or `uv` — see the substitution contract above.) Manage it
-only with that tool. Do not run the other manager's install/update/remove
-commands against this prefix, and do not mix tools within one prefix —
-changing manager means recreating the prefix from scratch, not converting it
-in place.
+`default` is a **__MANAGER__**-managed environment (always either
+`micromamba` or `uv`). Manage it only with that tool. Do not run the other
+manager's install/update/remove commands against this prefix, and do not mix
+tools within one prefix — changing manager means recreating the prefix from
+scratch, not converting it in place.
 
 Configured Python version: **__PYTHON_VERSION__** (for example, `3.13`).
 

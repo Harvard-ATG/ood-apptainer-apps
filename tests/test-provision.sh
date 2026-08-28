@@ -100,6 +100,25 @@ ENVROOT=$(setup); mkdir -p "$ROOT/outside"
 ln -sfn "$ROOT/outside" "$ROOT/course/sneaky"
 assert_contains "$(provision "$ROOT/course/sneaky")" "escapes"
 
+it "it fails loudly, once, when the shared launch library is missing"
+# Copies the script into an isolated fake repo with no ood/lib/launch-common.sh
+# beside it. Without the guard, sourcing a missing file falls through into two
+# more "command not found" errors (lc_validate_under, then lc_log inside
+# fail()) before exiting 1 as a side effect rather than a decision.
+FAKEREPO="$ROOT/fakerepo"
+rm -rf "$FAKEREPO"
+mkdir -p "$FAKEREPO/scripts"
+cp scripts/provision-course-env.sh "$FAKEREPO/scripts/provision-course-env.sh"
+chmod 755 "$FAKEREPO/scripts/provision-course-env.sh"
+ENVROOT=$(setup)
+MISSING_LIB_OUT=$("$FAKEREPO/scripts/provision-course-env.sh" \
+    --spec "$ROOT/spec" --environment-root "$ENVROOT" \
+    --course-folder "$ROOT/course" --scratch "$ROOT/scratch" 2>&1)
+assert_contains "$MISSING_LIB_OUT" "launch-common.sh"
+
+it "the missing-library failure doesn't cascade into command-not-found noise"
+assert_not_contains "$MISSING_LIB_OUT" "command not found"
+
 it "a failed validation leaves NO staff records behind"
 # Records are the signal that a prefix is usable. Writing them for a prefix that
 # failed validation is worse than writing nothing.
@@ -188,6 +207,27 @@ assert_contains "$OUT" "numpy"
 it "a failed representative-import check leaves no staff records either"
 assert_failure test -f "$ENVROOT/manager"
 
+it "it rejects a prefix whose interpreter reports the wrong Python version"
+# Step 8 requires that `python -V` reports the CONFIGURED version, not merely
+# that the interpreter runs at all. A stub that reports a version other than
+# the spec's python-version proves this is a real, distinct check.
+ENVROOT=$(setup)
+cat > "$BIN/micromamba" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >> "$STUB_LOG"
+for a in "$@"; do case "$a" in --prefix=*) P=${a#--prefix=};; esac; done
+[ -n "${P:-}" ] || { i=1; for a in "$@"; do [ "$a" = --prefix ] && P=$(eval echo \"\$$((i+1))\"); i=$((i+1)); done; }
+mkdir -p "$P/bin"
+printf '#!/bin/sh\ncase "$1" in -c) exit 0;; esac\necho "Python 3.11.0"\n' > "$P/bin/python"
+chmod 755 "$P/bin/python"
+STUB
+chmod 755 "$BIN/micromamba"
+OUT=$(provision "$ENVROOT")
+assert_contains "$OUT" "3.11.0"
+
+it "a Python-version mismatch leaves no staff records"
+assert_failure test -f "$ENVROOT/manager"
+
 it "it rejects a prefix with a directory that is not traversable by others"
 # Restore the plain-import-succeeds stub and instead break the permission
 # model, so this test isolates step 9 from step 8.
@@ -240,6 +280,29 @@ it "it does not append a README note when the spec carries none"
 ENVROOT=$(setup)
 provision "$ENVROOT" >/dev/null 2>&1
 assert_not_contains "$(cat "$ENVROOT/README.md")" "COURSE-SPECIFIC-NOTE-MARKER"
+
+it "the rendered README does not leak the template's maintainer-facing HTML comments"
+# The template's substitution contract and README-note explanation are HTML
+# comments addressed to whoever renders the template (this script), not to
+# the teaching staff member who actually reads the shipped file.
+ENVROOT=$(setup)
+provision "$ENVROOT" >/dev/null 2>&1
+assert_not_contains "$(cat "$ENVROOT/README.md")" "<!--"
+
+it "the rendered README does not leak the substitution-contract prose"
+assert_not_contains "$(cat "$ENVROOT/README.md")" "Substitution contract"
+
+ENVROOT=$(setup)
+OUT=$(provision "$ENVROOT")
+
+it "it prints the resolved prefix"
+assert_contains "$OUT" "prefix=$ENVROOT/default"
+
+it "it prints the manager"
+assert_contains "$OUT" "manager=micromamba"
+
+it "it prints the validated python version"
+assert_contains "$OUT" "python_version=3.13.0"
 
 it "it rejects an unknown flag"
 assert_contains "$(scripts/provision-course-env.sh --nope 2>&1)" "usage"
