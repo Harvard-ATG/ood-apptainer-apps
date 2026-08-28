@@ -1,7 +1,7 @@
 <%-
-# Copy this file into local/<course>.yml.erb and edit every CHANGE ME value.
-# Sub-apps do NOT inherit from each other: this is a full form, and a shared
-# value that changes must be updated in each course file independently.
+# This is a complete, independent live sub-app -- it does NOT inherit from the
+# other course files. A shared value that changes must be updated in each
+# course file separately.
 
 # Admin groups are matched by full group name.
 adminGroups = [
@@ -11,11 +11,10 @@ adminGroups = [
 # ACCESS. Bare Canvas course IDs, AS QUOTED STRINGS -- an unquoted integer never
 # matches, because the regex capture below yields a string. Add every
 # cross-listed section's Canvas ID that must be able to see this app.
-# Cross-listed sections (AM215 / AC209A, STAT109A, CSCI E-109A via DCE) are
-# expected to appear under this primary Canvas ID. VERIFY THIS WITH A
-# NON-ADMIN ENROLLED ACCOUNT from a cross-listed section before term starts;
-# if they carry their own IDs, add them here. Do not change `course` --
-# the folder stays the primary ID.
+# Cross-listed sections (AM215) are expected to appear under this primary
+# Canvas ID. VERIFY THIS WITH A NON-ADMIN ENROLLED ACCOUNT from a
+# cross-listed section before term starts; if they carry their own IDs, add
+# them here. Do not change `course` -- the folder stays the primary ID.
 enabledGroups = [
   "172566" # APMTH 115
 ]
