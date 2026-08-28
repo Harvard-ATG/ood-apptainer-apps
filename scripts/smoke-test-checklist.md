@@ -27,12 +27,6 @@ shortcut them:
 > automated containment suite's equivalent assertion cannot fail for any change to the
 > launcher and proves nothing about what actually ships.
 
-> **Some items cannot pass yet, by design.** Three Open VSX / JupyterLab
-> packages are known to be missing from the shipped images — see **Known-pending
-> image work** in `README.md`. The items they affect are marked *(pending image
-> work)* below. Record those as `n/a` with that reason rather than as failures,
-> and do not spend time diagnosing them.
-
 > **After any deployment pull, run `find . ! -perm -o+r`.** `git pull` does not
 > preserve permissions beyond the executable bit; new files are created against the
 > pulling administrator's umask. A pull performed with `umask 077` silently removes
@@ -61,9 +55,10 @@ shortcut them:
 | # | Check | Result | Date |
 |---|---|---|---|
 | 1 | Launch each app for each course. | | |
-| 2 | Complete Claude Code and Codex login flows with representative intended accounts. | | |
+| 2 | Complete the Claude Code login flow with a representative account. **Copy the sign-in link into the browser — do NOT click code-server's "Open" button**, which routes it through an external-URI opener that rewrites `localhost` and has been observed to break this flow. | | |
+| 2a | Complete the Codex login with `codex login --device-auth`. **The default `codex login` cannot work from a compute node** — it registers `redirect_uri=http://localhost:1455/auth/callback`, and that `localhost` is the student's own laptop. Device auth needs no callback. | | |
 | 3 | Restart the jobs and confirm both credentials persist in their isolated directories. | | |
-| 4 | Confirm both Open VSX extensions load and workspace trust does not block them. **(pending image work** for `ms-python.python` and `ms-toolsai.jupyter`, which are not in the current code-server image — check only the extensions actually present.**)** | | |
+| 4 | Confirm all five Open VSX extensions load and workspace trust does not block them: `Anthropic.claude-code`, `openai.chatgpt`, `ms-python.python`, `ms-toolsai.jupyter`, `ms-toolsai.jupyter-renderers`. | | |
 | 5 | Confirm both CLIs are on `PATH` in both integrated terminals. | | |
 | 6 | Record bundled CLI versions in both Open VSX extensions, and test their effective policy behavior separately from the system CLIs. | | |
 | 7 | Confirm CLI update checks are disabled. | | |
@@ -74,7 +69,7 @@ shortcut them:
 |---|---|---|---|
 | 1 | Inspect Claude `/status` and record which managed source won. | | |
 | 2 | Record whether Claude's sandbox is engaged. | | |
-| 3 | Inspect Codex's effective requirements after login. | | |
+| 3 | Inspect Codex's effective requirements after login. `/status` should report **`No Sandbox (Ask for approval)`** — expected, not a defect: Codex's filesystem sandbox cannot run inside this cluster's unprivileged Apptainer, so the profile is `:danger-full-access` and approval prompting is the remaining control. Confirm it **does** still prompt for approval. | | |
 | 4 | Confirm `.ssh` is empty and masked. | | |
 | 5 | Confirm Slurm binaries, configuration, and Munge are absent. **Check this against the real, deployed image** — a stub image never contained them, so the equivalent automated test in the containment suite cannot fail for any change to the launcher and proves nothing about the shipped image. | | |
 | 6 | Confirm no other course's shared folder is reachable. | | |
@@ -103,16 +98,16 @@ shortcut them:
 
 | # | Check | Result | Date |
 |---|---|---|---|
-| 1 | Confirm students see `Course Python`, backed by the validated target of `<environment_root>/default`, that it is the kernel a new notebook opens with, and that it reports the course's configured Python version. | | |
-| 2 | Confirm the secondary `Python 3 (image - no course packages)` kernel is present, is never the default while the course kernel exists, and cannot import course packages. | | |
+| 1 | Confirm students see `Python 3 (<COURSE LABEL>)` — e.g. `Python 3 (APMTH 115)`, taken from the sub-app's `course_label` — backed by the validated target of `<environment_root>/default`, that it is the kernel a new notebook opens with, and that it reports the course's configured Python version. | | |
+| 2 | Confirm the secondary `Python 3 (System Default — no course packages)` kernel is present, is never the default while the course kernel exists, and cannot import course packages. | | |
 | 3 | Confirm a session still starts with `<environment_root>/default` **renamed away**: the server comes up, the image kernel is the only kernel and becomes the default, and the session log states why. | | |
 | 4 | Confirm the same degraded behavior for a `default` whose `bin/python` exists but does not run (present on disk, not executable, or executes and fails): server still comes up, image kernel is the only kernel and becomes the default, session log states why. | | |
 | 5 | Confirm an `<environment_root>` symlink **escaping the course folder** still fails the launch outright — this must be treated as fatal, not as another case of the degraded path above. A containment failure must never soften into a warning. | | |
-| 6 | If `<environment_root>/staging` exists, confirm eligible staff also see `Course Python (STAGING)` and students do not. | | |
-| 7 | Confirm code-server selects the same `<COURSE_ENV>/bin/python`. **(pending image work.** The launcher writes `python.defaultInterpreterPath` and that is covered automatically, but no extension in the current code-server image reads it, so this cannot pass until `ms-python.python` is installed. Record `n/a`, not `fail`.**)** | | |
+| 6 | If `<environment_root>/staging` exists, confirm eligible staff also see `Python 3 (<COURSE LABEL> — STAGING)` and students do not. | | |
+| 7 | Confirm code-server selects the same `<COURSE_ENV>/bin/python`. The launcher writes `python.defaultInterpreterPath`; `ms-python.python` is what reads it, so this is an end-to-end check of both halves. | | |
 | 8 | Confirm a key present **only** in the image's own `/etc/code-server/settings.json` (never generated by the launcher) reaches a live code-server session's effective settings. This is the assertion that the launcher merges the image's seed with its own generated keys rather than overwriting the seed outright — a launcher that copies the seed and then rewrites the same path with a heredoc would still show the generated keys (workspace trust among them) while silently discarding every image-level one, and the session would look correct. | | |
 | 9 | Import representative compiled packages in both app images. | | |
-| 9a | Confirm `ipywidgets` output renders in JupyterLab. **(pending image work:** `jupyterlab_widgets` is not in the current JupyterLab image, and both course environments list `ipywidgets`.**)** | | |
+| 9a | Confirm `ipywidgets` output renders in JupyterLab. Both halves are needed and they live in different places: the kernel half comes from the course environment, the front-end half (`jupyterlab_widgets`) from the image. | | |
 | 10 | For a uv-managed course, confirm the prefix's base interpreter resolves beneath `environment_root` rather than into the image. | | |
 | 11 | Confirm staff can modify a test file inside the environment and a student cannot. | | |
 | 12 | Confirm the documented manager-specific maintenance works from an integrated terminal without using the other manager against the prefix. | | |
