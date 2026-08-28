@@ -160,13 +160,39 @@ assert_not_contains "$(cat "$FIXTURE_ROOT/container.env.snapshot")" "$PLAINTEXT"
 it "the hashed credential IS on argv, which is the intended design"
 assert_contains "$(cat "$FAKE_JOB_STATE/argv.log")" "sha1:"
 
+# Matches THIS run's own server process, not a machine-wide
+# `pgrep -f 'jupyterlab.script.sh'`. That pattern was wrong twice over.
+#
+# It is not run-scoped: any concurrent run of this same suite satisfies it, so
+# the assertion below passed while the session it was meant to check survived
+# the reap -- measured at 2 failures in 4 parallel runs against 0 in 3
+# sequential ones, which makes the whole suite unsafe to parallelise.
+#
+# And it does not name the server at all. The launcher execs the server, so
+# once the session is up NOTHING carries jupyterlab.script.sh in its command
+# line: the in-container bash has been replaced, and Apptainer's host-side
+# process renames itself to "Apptainer runtime parent: ...". The only cmdline
+# the pattern could ever match belonged to a run still inside its brief
+# pre-exec window -- which is to say, someone else's run.
+#
+# --ServerApp.root_dir is the server's own argument and carries $FAKE_HOME,
+# which lives under this run's mktemp FIXTURE_ROOT. No leading "--" in the
+# pattern: pgrep would read that as an option of its own.
+SESSION_PATTERN="ServerApp.root_dir=$FAKE_HOME"
+
+it "the session is running before the reap, so the check after it cannot pass vacuously"
+# A run-scoped pattern buys nothing if it matches nothing: a typo in $STAGED
+# would make the post-reap check pass unconditionally. This is that pattern's
+# positive control.
+assert_success pgrep -f "$SESSION_PATTERN"
+
 it "reaping children of SCRIPT_PID stops the session"
 if [ -n "$SCRIPT_PID" ]; then
     pkill -P "$SCRIPT_PID" 2>/dev/null
     sleep 2
     if kill -0 "$SCRIPT_PID" 2>/dev/null; then kill "$SCRIPT_PID" 2>/dev/null; fi
     sleep 1
-    if pgrep -f 'jupyterlab.script.sh' >/dev/null 2>&1; then
+    if pgrep -f "$SESSION_PATTERN" >/dev/null 2>&1; then
         _fail "the in-container server survived the reap"
     else
         _pass
