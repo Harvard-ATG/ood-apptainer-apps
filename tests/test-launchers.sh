@@ -53,6 +53,23 @@ assert_eq "$JL_EXEC_TARGET" "/opt/conda/bin/jupyter"
 it "codeserver launcher execs rather than forks"
 assert_contains "$(cat ../ood/codeserver-ai/template/codeserver.script.sh)" "exec "
 
+# The same reasoning as the JupyterLab block above, and for a stronger reason:
+# codeserver.script.sh prepends ${COURSE_ENV}/bin to PATH, so the FIRST element
+# of PATH when it execs is a staff-writable directory on a shared filesystem. A
+# bare `exec code-server` resolves there before it reaches the image, which the
+# launcher's own comment claims cannot happen. The planted-binary test at the
+# bottom of this file proves the consequence; these two pin the mechanism.
+CS_EXEC_TARGET=$(grep -E '^exec ' ../ood/codeserver-ai/template/codeserver.script.sh \
+    | head -1 | awk '{print $2}')
+
+it "codeserver launcher execs an ABSOLUTE path, not a bare command name"
+assert_eq "${CS_EXEC_TARGET:0:1}" "/"
+
+it "codeserver launcher execs the image-owned code-server"
+# /usr/local/bin/code-server is the real image's symlink into
+# /usr/local/lib/code-server, and the stub image mirrors that path.
+assert_eq "$CS_EXEC_TARGET" "/usr/local/bin/code-server"
+
 run_launcher() {
     local script="$1"; shift
     local envf="$FIXTURE_ROOT/env.list"
@@ -175,5 +192,41 @@ it "codeserver: points the Python extension at the course interpreter"
 # tests/test-settings-merge.sh for that coverage); here we only need proof the
 # interpreter key survives an end-to-end launch through the real launcher.
 assert_contains "$(cat "$SETTINGS_FILE")" '"python.defaultInterpreterPath"'
+
+# --- code-server: the staff-writable course environment must not be able to
+# substitute its own server.
+#
+# ${COURSE_ENV}/bin is the first element of PATH by the time the launcher
+# execs, and the course folder is bound into the container at its own host
+# path, so a file planted here is exactly what a bare `exec code-server` would
+# find. This asserts the CONSEQUENCE -- which binary actually ran, recorded
+# from inside the container -- rather than the launcher's comment about it.
+rm -f "$FAKE_JOB_STATE/argv.log" "$FAKE_JOB_STATE/server.pid"
+cat > "$FAKE_ENV_ROOT/default/bin/code-server" <<'INTRUDER'
+#!/bin/sh
+: "${STATE_DIR:=/state}"
+mkdir -p "$STATE_DIR"
+printf '%s\n' "COURSE-ENV-INTRUDER-RAN" "$0" "$@" > "$STATE_DIR/argv.log"
+exit 0
+INTRUDER
+chmod 755 "$FAKE_ENV_ROOT/default/bin/code-server"
+run_launcher codeserver.script.sh \
+    "CODE_SERVER_PORT=7125" \
+    "PASSWORD=plaintext-must-not-reach-argv" \
+    "COURSE_ENV=$FAKE_ENV_ROOT/default" \
+    "COURSE_ENV_STATUS=ok" \
+    "STUB_PORT=7125" \
+    "STATE_DIR=/state" \
+    "PATH=/usr/local/bin:/usr/bin:/bin"
+CS_PLANTED_ARGV=$(cat "$FAKE_JOB_STATE/argv.log" 2>/dev/null || echo "")
+rm -f "$FAKE_ENV_ROOT/default/bin/code-server"
+
+it "codeserver: a code-server planted in the staff-writable course environment does NOT run"
+assert_not_contains "$CS_PLANTED_ARGV" "COURSE-ENV-INTRUDER-RAN"
+
+it "codeserver: the image-owned server ran instead"
+# Not merely the absence of the intruder: a launcher that failed to start
+# anything at all would also satisfy the assertion above.
+assert_contains "$CS_PLANTED_ARGV" "/usr/local/bin/code-server"
 
 finish

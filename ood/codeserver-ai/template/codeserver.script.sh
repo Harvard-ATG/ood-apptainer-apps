@@ -32,8 +32,12 @@ mkdir -p "${USER_DATA_DIR}/User" || { log "ERROR: cannot create ${USER_DATA_DIR}
 COURSE_PYTHON=""
 if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && [ -x "${COURSE_ENV}/bin/python" ]; then
     COURSE_PYTHON="${COURSE_ENV}/bin/python"
-    # The server itself comes from its image-owned location, so this cannot
-    # start code-server from the external environment. Skipped when degraded.
+    # Prepend the course environment so the integrated terminal resolves
+    # `python` and the course's own entry points. Note what this means: the
+    # FIRST element of PATH is now a staff-writable directory on a shared
+    # filesystem. That is why the exec below names the server by its absolute
+    # image-owned path -- see the comment there. Skipped when degraded:
+    # prepending a directory that does not work helps nobody.
     export PATH="${COURSE_ENV}/bin:${PATH}"
 else
     log "WARNING: no course environment (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
@@ -66,7 +70,17 @@ log "starting code-server"
 #
 # exec so code-server becomes the container's first process and receives
 # scancel directly.
-exec code-server \
+#
+# The ABSOLUTE image-owned path is deliberate and load-bearing. Above, this
+# script prepends ${COURSE_ENV}/bin to PATH, making a staff-writable directory
+# on a shared filesystem the FIRST place a bare command name resolves. A file
+# named `code-server` placed there -- by a mistaken staff install, or
+# otherwise -- would then be started in place of the image's server, with the
+# session's own credential in its environment. /usr/local/bin/code-server is
+# the image's symlink into /usr/local/lib/code-server, and it is not reachable
+# from the course environment. jupyterlab.script.sh execs /opt/conda/bin/jupyter
+# for exactly the same reason.
+exec /usr/local/bin/code-server \
     --auth=password \
     --bind-addr="0.0.0.0:${CODE_SERVER_PORT}" \
     --extensions-dir=/opt/code-server/extensions \
