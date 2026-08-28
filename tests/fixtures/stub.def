@@ -35,3 +35,9 @@ SHIM
   # start against the stub either.
   mkdir -p /opt/conda/bin
   ln -s /usr/local/bin/_stub-server /opt/conda/bin/jupyter
+
+  # The real JupyterLab image ships its own interpreter at /opt/conda/bin/python,
+  # which backs the fallback kernel. The stub only needs the path to exist and
+  # to be executable -- nothing in these tests runs it.
+  printf '#!/bin/sh\nexit 0\n' > /opt/conda/bin/python
+  chmod 755 /opt/conda/bin/python
