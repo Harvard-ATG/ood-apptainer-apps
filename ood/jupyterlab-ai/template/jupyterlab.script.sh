@@ -16,6 +16,30 @@ log() {
 log "container HOME=${HOME}"
 log "course environment=${COURSE_ENV}"
 
+# ---------------------------------------------------------------------------
+# Terminal environment.
+#
+# Apptainer injects TWO variables that put "Apptainer> " in a student's
+# terminal, and the second is the one that actually does it:
+#
+#   PS1="Apptainer> "
+#   PROMPT_COMMAND='PS1="Apptainer> "; unset PROMPT_COMMAND'
+#
+# Every child process inherits both. Bash reads /etc/bash.bashrc and sets a
+# normal Debian prompt -- and then runs PROMPT_COMMAND before displaying the
+# first prompt, which overwrites PS1 and deletes itself. So the rc files do NOT
+# save us: a completely ordinary interactive bash still shows the container
+# prompt. PS1 alone matters for shells that read no rc files at all (sh/dash).
+# Both are removed here, so the worst case is a shell falling back to its own
+# default prompt rather than showing a container implementation detail.
+unset PS1 PROMPT_COMMAND
+
+# Make the terminal shell explicit rather than inherited. Both apps fall back to
+# a bare `sh` when SHELL is unset -- and dash is exactly the shell that would
+# have shown the inherited prompt. Deliberately NOT a login shell: /etc/profile
+# resets PATH, which would discard the course-environment prepend below.
+export SHELL=/bin/bash
+
 KERNEL_DIR="${JUPYTER_DATA_DIR:-/state/jupyter/data}/kernels"
 CONFIG_DIR="${JUPYTER_CONFIG_DIR:-/state/jupyter/config}"
 IMAGE_PYTHON=/opt/conda/bin/python
@@ -105,6 +129,12 @@ cat > "${CONFIG_DIR}/jupyter_server_config.py" <<CFG || { log "ERROR: cannot wri
 c = get_config()  # noqa: F821
 c.KernelSpecManager.allowed_kernelspecs = {${ALLOWED}}
 c.MultiKernelManager.default_kernel_name = "${DEFAULT_KERNEL}"
+
+# jupyter_server_terminals resolves its shell as
+# [os.environ.get("SHELL") or which("sh")], so an unset SHELL silently yields
+# dash. Pin bash explicitly. NOT a LOGIN shell: that re-reads /etc/profile,
+# which resets PATH and would drop the course environment prepended above.
+c.ServerApp.terminado_settings = {"shell_command": ["/bin/bash"]}
 CFG
 
 log "kernels: ${ALLOWED}; default=${DEFAULT_KERNEL}"
