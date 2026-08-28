@@ -189,4 +189,48 @@ it "the gate does not claim to have checked any sub-app without its dependencies
 # failure(s)" from a node with no jq would be worse than one that crashed.
 assert_not_contains "$NODEPS_OUT" "sub-app(s)"
 
+# A tool that is PRESENT but does not run is the harder case, and the one the
+# preflight originally missed: `command -v` is satisfied by a shim, a broken
+# symlink, or a wrapper missing its own runtime. A jq that exits nonzero makes
+# every jq-extracted value empty, so the gate reported sixteen access-control
+# and title failures -- a wall of findings naming the wrong problem.
+BROKEN_BIN="$TMP/broken"
+mkdir -p "$BROKEN_BIN"
+printf '#!/bin/sh\necho "jq: fatal" >&2\nexit 127\n' > "$BROKEN_BIN/jq"
+chmod 755 "$BROKEN_BIN/jq"
+BROKEN_OUT=$(PATH="$BROKEN_BIN:$PATH" ./scripts/render-forms.sh 2>&1)
+
+it "a present-but-broken jq is rejected by the preflight"
+assert_contains "$BROKEN_OUT" "jq is on PATH but does not run"
+
+it "a present-but-broken jq does not produce a wall of unrelated findings"
+# The consequence, not the message: no per-sub-app finding of ANY kind. Note the
+# pattern is bare "FAIL" and not "FAIL ood/" -- fail() prints the ABSOLUTE path,
+# so the latter matches nothing and the assertion could never fail. Found by
+# mutating the probe away and watching this pass while sixteen access-control
+# findings scrolled past.
+assert_not_contains "$BROKEN_OUT" "FAIL"
+
+it "a present-but-broken jq does not report access-control findings"
+# The specific wrong-problem wall: empty jq output made every sub-app look as
+# though it had no access control at all.
+assert_not_contains "$BROKEN_OUT" "access control failure"
+
+it "a present-but-broken jq does not abort with an unbound variable"
+# `declare -a X` leaves X unbound under set -u, so the coverage check aborted
+# here instead of reporting anything.
+assert_not_contains "$BROKEN_OUT" "unbound variable"
+
+it "the gate reports nothing checked when a dependency is unusable"
+assert_not_contains "$BROKEN_OUT" "sub-app(s)"
+
+it "the coverage check survives a run where no sub-app records a course"
+# Reachable with an empty local/, not just via a broken jq. The arrays must be
+# initialised, not merely declared.
+rm -rf "$TMP/nocourse"; mkdir -p "$TMP/nocourse"
+cp -a ood scripts tests "$TMP/nocourse/"
+rm -f "$TMP/nocourse"/ood/*/local/*.yml.erb
+NOCOURSE_OUT=$( cd "$TMP/nocourse" && ./scripts/render-forms.sh 2>&1 )
+assert_not_contains "$NOCOURSE_OUT" "unbound variable"
+
 finish

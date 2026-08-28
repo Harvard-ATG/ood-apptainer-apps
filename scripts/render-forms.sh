@@ -40,6 +40,20 @@ for tool in ruby jq; do
     fi
 done
 
+# ...and that each one actually RUNS. `command -v` only proves a file is there:
+# a shim, a broken symlink, or a wrapper missing its own runtime all satisfy it.
+# Without this, a present-but-non-functional jq yields empty values everywhere
+# and the gate reports sixteen access-control and title failures -- a wall of
+# findings naming the wrong problem, which is worse than not running at all.
+if ! ruby -e '' >/dev/null 2>&1; then
+    printf '[%s] FATAL: ruby is on PATH but does not run\n' "$this_script" >&2
+    exit 1
+fi
+if ! printf '{}' | jq -e . >/dev/null 2>&1; then
+    printf '[%s] FATAL: jq is on PATH but does not run\n' "$this_script" >&2
+    exit 1
+fi
+
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RENDER_RB="$REPO_ROOT/tests/render.rb"
 IMAGE_ROOT="/shared/apptainerImages"
@@ -53,9 +67,16 @@ if [ ! -f "$RENDER_RB" ]; then
 fi
 
 # course id -> space-separated list of app dirs whose local/ defines it.
-declare -A COURSE_APPS
+#
+# Both are initialised, not merely declared: `declare -a X` on its own leaves X
+# UNBOUND, so `${#X[@]}` and `${!X[@]}` are fatal under `set -u` until something
+# assigns to them. That is reachable whenever no sub-app records a course id --
+# an empty local/, or a jq that runs but returns nothing -- and it turned the
+# gate's own coverage check into an "unbound variable" abort instead of a
+# finding.
+declare -A COURSE_APPS=()
 # Every app dir that contributed at least one sub-app with a course id.
-declare -a APP_DIRS
+declare -a APP_DIRS=()
 
 # Templates a course sub-app's context can break: any *.erb under the parent
 # app (excluding local/ and examples/) that reads context.<attribute>.
