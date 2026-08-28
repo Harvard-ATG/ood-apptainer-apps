@@ -43,4 +43,33 @@ it "it does not hide failures"
 assert_not_contains "$body" "|| true"
 assert_not_contains "$body" "set +e"
 
+it "it discards no stderr, so a build-scratch failure keeps its real diagnostic"
+# mkdir's own message says whether the path is read-only, absent, over quota or
+# permission-denied. Swallowing it leaves only "cannot create build scratch",
+# which is expensive to act on from a cluster node. The same pattern is banned
+# in the recipe by test-recipe.sh.
+assert_not_contains "$body" "2>/dev/null"
+
+it "it warns about an architecture mismatch BEFORE spending the build"
+# The authoritative check is on the artifact, after the build -- but it then
+# deletes what it rejects. Unwarned, every artifact on an arm build host is
+# destroyed after ~20 minutes unless OOD_AI_TARGET_ARCH is set.
+assert_contains "$body" "WARNING: build host is"
+
+it "the early warning compares through normalize_arch, not a hardcoded arch"
+assert_contains "$body" 'normalize_arch "$HOST_ARCH"'
+
+it "the early warning names the override that keeps the artifact"
+assert_contains "$body" "OOD_AI_TARGET_ARCH="
+
+it "the early warning precedes the build, or it saves nothing"
+warn_pos=$(printf '%s' "$body" | grep -n "WARNING: build host is" | head -1 | cut -d: -f1)
+build_pos=$(printf '%s' "$body" | grep -n "apptainer build --fakeroot \"\$SIF\"" | head -1 | cut -d: -f1)
+assert_eq "$([ "$warn_pos" -lt "$build_pos" ] && echo before || echo after)" "before"
+
+it "it still warns rather than refuses -- cross-arch validation builds are legitimate"
+# The early check must not exit; only the post-build artifact check rejects.
+early=$(printf '%s' "$body" | sed -n "${warn_pos},${build_pos}p")
+assert_not_contains "$early" "exit 1"
+
 finish

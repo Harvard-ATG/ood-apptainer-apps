@@ -83,7 +83,11 @@ fi
 # Apptainer's build scratch defaults to /tmp, which on a compute node is a small
 # nodev tmpfs. Point it at real disk and fail early if that is not writable.
 BUILD_SCRATCH="${OOD_AI_BUILD_SCRATCH:-/scratch/$(id -nu)/apptainer-build}"
-if ! mkdir -p "${BUILD_SCRATCH}/tmp" "${BUILD_SCRATCH}/cache" 2>/dev/null; then
+# mkdir's own stderr is deliberately NOT discarded. It carries the one thing
+# worth having here -- whether the path is read-only, absent, over quota or
+# permission-denied -- and on a cluster node that is expensive to work out any
+# other way. The messages below add the remedy, they do not replace it.
+if ! mkdir -p "${BUILD_SCRATCH}/tmp" "${BUILD_SCRATCH}/cache"; then
     log "ERROR: cannot create build scratch at ${BUILD_SCRATCH}"
     log "  set OOD_AI_BUILD_SCRATCH to a writable path on real disk"
     exit 1
@@ -91,6 +95,22 @@ fi
 export APPTAINER_TMPDIR="${BUILD_SCRATCH}/tmp"
 export APPTAINER_CACHEDIR="${BUILD_SCRATCH}/cache"
 log "build scratch ${BUILD_SCRATCH}"
+
+# Warn about an architecture mismatch BEFORE the build, not after it. The
+# authoritative check is on the artifact below -- a cross-build would sail past
+# a host check -- but that one runs after a multi-gigabyte, ~20-minute build
+# and then deletes what it rejects. On an arm build host that silently destroys
+# every artifact unless OOD_AI_TARGET_ARCH is set, with no hint until the end.
+#
+# A warning, not a refusal: building on a different architecture is a
+# legitimate way to validate a definition. Compared through normalize_arch, so
+# this stays a comparison against TARGET_ARCH rather than a hardcoded arch.
+HOST_ARCH=$(uname -m)
+if [ "$(normalize_arch "$HOST_ARCH")" != "$(normalize_arch "$TARGET_ARCH")" ]; then
+    log "WARNING: build host is ${HOST_ARCH} but the target is ${TARGET_ARCH}"
+    log "  the artifact will be REFUSED and deleted once the build completes"
+    log "  to keep it, set OOD_AI_TARGET_ARCH=${HOST_ARCH}; otherwise build on a ${TARGET_ARCH} host"
+fi
 
 log "building ${TARGET} -> ${SIF}"
 ( cd "${IMAGES_ROOT}/${FAMILY}" && apptainer build --fakeroot "$SIF" "$DEF" )
