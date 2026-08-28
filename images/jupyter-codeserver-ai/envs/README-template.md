@@ -121,22 +121,12 @@ If an update fails or leaves the environment broken:
 3. Re-test Python startup and the course's representative imports before
    re-enabling student access.
 
-## Course-specific constraints
-
 <!--
-Machine-readable removal markers: a section between a
-"BEGIN COURSE-SPECIFIC: <course>" and matching "END COURSE-SPECIFIC: <course>"
-comment applies to that one course only. Whoever renders this template for a
-different course should strip every such pair mechanically (course name
-mismatch is enough to know to remove it), rather than relying on the section
-being last or on this prose. A course with no course-specific constraints
-gets no such pair at all, and this heading may then read "None." or be
-omitted along with it.
+A course with constraints specific to it (not covered by the generic body
+above) keeps them in its own optional `README-note.md` file beside its spec
+directory (e.g. `images/jupyter-codeserver-ai/envs/cs1090a/README-note.md`),
+not in this shared template. provision-course-env.sh appends that file
+verbatim to the rendered README when it exists, so a course with no note gets
+no extra section, and no course's render has to know how to skip any other
+course's content.
 -->
-
-<!-- BEGIN COURSE-SPECIFIC: cs1090a -->
-**CS1090A only:** `otter-grader` is pinned to `>=7,<8`. This upper bound is a
-course requirement, not a suggestion — **consult ATG before installing an
-otter-grader version 8 or later.** Crossing it without checking first can
-break how the course's assignments are graded.
-<!-- END COURSE-SPECIFIC: cs1090a -->
