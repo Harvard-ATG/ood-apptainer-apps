@@ -30,6 +30,7 @@ cd "${HOME}" || exit 1
 # ---------------------------------------------------------------------------
 IMAGE_FILE="<%= context.imagefile %>"
 COURSE_FOLDER="<%= context.course_folder %>"
+COURSE_LABEL="<%= context.course_label %>"
 ENVIRONMENT_ROOT_RAW="<%= context.environment_root %>"
 
 # ---------------------------------------------------------------------------
@@ -83,6 +84,7 @@ lc_write_env_file "${ENV_FILE}" \
     "ENVIRONMENT_ROOT=${ENVIRONMENT_ROOT}" \
     "COURSE_ENV=${COURSE_ENV}" \
     "COURSE_ENV_STATUS=${COURSE_ENV_STATUS}" \
+    "COURSE_LABEL=${COURSE_LABEL}" \
     "COURSE_ENV_STAGING=${COURSE_ENV_STAGING}" \
     "CLAUDE_CONFIG_DIR=${HOME}/.claude" \
     "CODEX_HOME=${HOME}/.codex" \

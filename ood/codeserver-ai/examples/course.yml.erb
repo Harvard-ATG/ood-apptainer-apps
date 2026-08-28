@@ -60,6 +60,7 @@ form:
   - mem_per_cpu
   - imagefile
   - course
+  - course_label
   - course_folder
   - environment_root
 
@@ -95,5 +96,9 @@ attributes:
   # enabledGroups above, so adding a cross-list access group can never silently
   # change which folder is mounted.
   course: "000000"
+  # Student-facing course label, e.g. "APMTH 115". Threaded into the Jupyter
+  # kernel names, and cross-checked against title: by render-forms.sh -- the
+  # title must end with "- <course_label>".
+  course_label: "CHANGE ME"
   course_folder: "/shared/courseSharedFolders/000000outer/000000"
   environment_root: "/shared/courseSharedFolders/000000outer/000000/envs"

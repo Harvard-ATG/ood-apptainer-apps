@@ -86,8 +86,22 @@ lc_write_env_file() {
     done
 
     ( umask 077; : > "$path" ) || return 1
+    local key value
     for kv in "$@"; do
-        printf '%s\n' "$kv" >> "$path"
+        key="${kv%%=*}"
+        value="${kv#*=}"
+        # Apptainer EVALUATES this file as a shell-ish script rather than reading
+        # it as plain key=value pairs, so an unquoted value containing a space is
+        # parsed as a command and aborts the launch outright:
+        #   COURSE_LABEL=APMTH 115
+        #   FATAL: while evaluating environment script: could not execute "115"
+        # Every value is therefore quoted, and the characters double quotes do
+        # not protect are escaped. `$` and newlines are rejected above, so only
+        # backslash, double quote and backtick remain.
+        value=${value//\\/\\\\}
+        value=${value//\"/\\\"}
+        value=${value//\`/\\\`}
+        printf '%s="%s"\n' "$key" "$value" >> "$path"
     done
     chmod 600 "$path"
 }

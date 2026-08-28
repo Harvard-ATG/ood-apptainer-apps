@@ -23,14 +23,29 @@ assert_success lc_write_env_file "$ENVF" "COURSE_ENV=$FAKE_ENV_ROOT/default" "PY
 it "environment file is mode 0600"
 assert_file_mode "$ENVF" 600
 
-it "values are present verbatim"
-assert_contains "$(cat "$ENVF")" "COURSE_ENV=$FAKE_ENV_ROOT/default"
+it "values are present, quoted"
+# Quoted, not bare: Apptainer evaluates this file as a script, so a bare value
+# containing a space would be parsed as a command and abort the launch.
+assert_contains "$(cat "$ENVF")" "COURSE_ENV=\"$FAKE_ENV_ROOT/default\""
 
 it "file contains no unexpanded shell variable"
 assert_not_contains "$(cat "$ENVF")" '$'
 
 it "rejects an unexpanded value, because Apptainer does not expand env files"
 assert_failure lc_write_env_file "$ENVF" 'CLAUDE_CONFIG_DIR=$HOME/.claude'
+
+it "a value containing a space survives into the container"
+# This is the case that used to abort the launch with `could not execute "115"`.
+IMAGE=$(fixture_image)
+lc_write_env_file "$ENVF" "COURSE_LABEL=APMTH 115" "PATH=/usr/local/bin:/usr/bin:/bin"
+lc_build_binds "$FAKE_COURSE_ROOT" "$FAKE_SCRATCH" "$FAKE_JOB_STATE" "$FAKE_JOB_TMP" "$FAKE_SSH_MASK"
+HOME="$FAKE_HOME" assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}" \
+    "$IMAGE" "$ENVF" sh -c 'printf %s "$COURSE_LABEL"' 2>/dev/null)" "APMTH 115"
+
+it "a value containing a double quote survives into the container"
+lc_write_env_file "$ENVF" 'TITLE=say "hi"' "PATH=/usr/local/bin:/usr/bin:/bin"
+assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}" \
+    "$IMAGE" "$ENVF" sh -c 'printf %s "$TITLE"' 2>/dev/null)" 'say "hi"'
 
 it "rejects a value containing a newline"
 assert_failure lc_write_env_file "$ENVF" "$(printf 'A=one\nB=two')"

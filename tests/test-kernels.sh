@@ -24,6 +24,7 @@ run_generator() {
     COURSE_ENV="$FAKE_ENV_ROOT/default" \
     COURSE_ENV_STATUS="$status" \
     COURSE_ENV_STAGING="$staging" \
+    COURSE_LABEL="${COURSE_LABEL_OVERRIDE-APMTH 115}" \
     ENVIRONMENT_ROOT="$FAKE_ENV_ROOT" \
     JUPYTER_CONFIG_DIR="$FAKE_JOB_STATE/jupyter/config" \
     JUPYTER_DATA_DIR="$FAKE_JOB_STATE/jupyter/data" \
@@ -43,8 +44,15 @@ assert_success test -f "$KERNELS/course-python/kernel.json"
 it "the course kernel runs the course interpreter, not the image one"
 assert_contains "$(cat "$KERNELS/course-python/kernel.json")" "$FAKE_ENV_ROOT/default/bin/python"
 
-it "the course kernel is displayed as Course Python"
-assert_contains "$(cat "$KERNELS/course-python/kernel.json")" '"display_name": "Course Python"'
+it "the course kernel is named for the COURSE, not for our implementation"
+# A student reads this string in the launcher, so it has to mean something to
+# them. The label comes from a fixed sub-app attribute.
+assert_contains "$(cat "$KERNELS/course-python/kernel.json")" '"display_name": "Python 3 (APMTH 115)"'
+
+it "the course kernel falls back to a generic label if none was threaded through"
+COURSE_LABEL_OVERRIDE="" run_generator ok ""
+assert_contains "$(cat "$KERNELS/course-python/kernel.json")" '"display_name": "Python 3 (Course Environment)"'
+run_generator ok ""
 
 it "the image kernel is always generated too"
 assert_success test -f "$KERNELS/image-python/kernel.json"

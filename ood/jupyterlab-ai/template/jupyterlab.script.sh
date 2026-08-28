@@ -44,6 +44,15 @@ KERNEL_DIR="${JUPYTER_DATA_DIR:-/state/jupyter/data}/kernels"
 CONFIG_DIR="${JUPYTER_CONFIG_DIR:-/state/jupyter/config}"
 IMAGE_PYTHON=/opt/conda/bin/python
 
+# Kernel display names are what a student actually reads in the launcher, so
+# they name the COURSE rather than our implementation. "image" meant nothing to
+# a student who has never heard of a container; "System Default" is what this
+# interpreter actually is from their point of view. The course label is a fixed
+# sub-app attribute -- see render-forms.sh, which requires the sub-app title to
+# end with it, so the kernel and the session card cannot disagree.
+COURSE_LABEL="${COURSE_LABEL:-}"
+[ -n "$COURSE_LABEL" ] || COURSE_LABEL="Course Environment"
+
 # JUPYTER_PATH makes these kernelspecs discoverable; the image installs no
 # ipykernel kernelspec of its own.
 mkdir -p "${KERNEL_DIR}" "${CONFIG_DIR}" || {
@@ -78,7 +87,7 @@ usable() {
 # The image kernel is generated unconditionally and is never the default while a
 # course kernel exists. It exists so that an unprovisioned or broken course
 # environment leaves a usable session instead of an empty one.
-write_kernel image-python "Python 3 (image - no course packages)" "${IMAGE_PYTHON}" || {
+write_kernel image-python "Python 3 (System Default — no course packages)" "${IMAGE_PYTHON}" || {
     log "ERROR: cannot write the image kernelspec"
     exit 1
 }
@@ -86,7 +95,7 @@ ALLOWED='"image-python"'
 DEFAULT_KERNEL=image-python
 
 if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
-    write_kernel course-python "Course Python" "${COURSE_ENV}/bin/python" || {
+    write_kernel course-python "Python 3 (${COURSE_LABEL})" "${COURSE_ENV}/bin/python" || {
         log "ERROR: cannot write the course kernelspec"
         exit 1
     }
@@ -101,7 +110,7 @@ if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
     log "course kernel ready: ${COURSE_ENV}"
 else
     log "WARNING: no course kernel (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
-    log "WARNING: this session offers only 'Python 3 (image - no course packages)'."
+    log "WARNING: this session offers only 'Python 3 (System Default — no course packages)'."
     log "WARNING: the course environment must be provisioned or repaired by teaching staff or ATG."
 fi
 
@@ -110,7 +119,7 @@ fi
 # unnameable inside the container.
 if [ -n "${COURSE_ENV_STAGING:-}" ] && [ -w "${ENVIRONMENT_ROOT:-/nonexistent}" ] \
    && usable "${COURSE_ENV_STAGING}"; then
-    write_kernel course-python-staging "Course Python (STAGING)" \
+    write_kernel course-python-staging "Python 3 (${COURSE_LABEL} — STAGING)" \
         "${COURSE_ENV_STAGING}/bin/python" || {
         log "ERROR: cannot write the staging kernelspec"
         exit 1

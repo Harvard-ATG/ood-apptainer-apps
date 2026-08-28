@@ -157,6 +157,24 @@ check_subapp() {  # <path to a local/*.yml.erb sub-app>
         esac
     fi
 
+    # 4b. course_label exists, and the title agrees with it.
+    #
+    # The kernel names a student reads in JupyterLab are built from
+    # course_label; the session card they clicked is title. If those disagree,
+    # the card says one course and the kernel says another. Requiring the title
+    # to END with "- <course_label>" ties them together without duplicating the
+    # app name.
+    local course_label
+    course_label=$(printf '%s' "$base_json" | jq -r '.attributes.course_label // ""')
+    if [ -z "$course_label" ]; then
+        fail "$path" "course_label is missing; the Jupyter kernel names are built from it"
+    else
+        case "$title" in
+            *"- ${course_label}") : ;;
+            *) fail "$path" "title \"${title}\" does not end with \"- ${course_label}\", so the session card and the kernel names would name different courses" ;;
+        esac
+    fi
+
     # 5. No leftover placeholders, in the source or the rendered document.
     local combined
     combined=$(cat "$path"; printf '%s' "$base_json")
