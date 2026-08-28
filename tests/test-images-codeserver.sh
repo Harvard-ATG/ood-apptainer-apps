@@ -48,6 +48,21 @@ it "no Jupyter runtime was inherited"
 # means the wrong base was used.
 assert_failure image_exec codeserver sh -c 'command -v jupyter'
 
+it "every installed policy file matches its source, byte for byte"
+# The JupyterLab suite has always checked this for requirements.toml; the
+# code-server suite did not, so a policy edit made between the two builds left
+# this image stale and only test-image-parity.sh noticed -- indirectly, via the
+# governance-file checksums in the manifest. Check it here directly too, and
+# for every policy file rather than one.
+COMMON_SRC=../images/jupyter-codeserver-ai/common
+for f in codex/requirements.toml codex/managed_config.toml \
+         claude-code/managed-settings.json claude-code/managed-mcp.json; do
+    dest="/etc/$(dirname "$f")/$(basename "$f")"
+    src=$(sha256sum "$COMMON_SRC/$f" | cut -d' ' -f1)
+    img=$(image_exec codeserver sha256sum "$dest" 2>/dev/null | cut -d' ' -f1)
+    assert_eq "$img" "$src"
+done
+
 it "the build staging directory was removed"
 assert_failure image_exec codeserver test -e /opt/build
 
