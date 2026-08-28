@@ -30,11 +30,17 @@ fixture_create() {
              "$FAKE_SECRET_DIR" \
              "$FAKE_IMAGE_ROOT_FAST" "$FAKE_IMAGE_ROOT_CANONICAL"
 
-    # A course python that is executable and reports a version, so path
-    # validation and interpreter checks have something real to find.
+    # A course python that is executable, reports a version, and succeeds at
+    # `-c`, so both the interpreter check and the in-container import probe have
+    # something real to find. Without the `-c` arm this stub would print the
+    # version banner in response to a probe -- passing it by accident, and
+    # making the "broken environment" tests unable to fail.
     for variant in default staging; do
         cat > "$FAKE_ENV_ROOT/$variant/bin/python" <<'PY'
 #!/bin/sh
+case "$1" in
+    -c) exit 0 ;;
+esac
 echo "Python 3.13.0"
 PY
         chmod 755 "$FAKE_ENV_ROOT/$variant/bin/python"
@@ -47,6 +53,23 @@ PY
 
 fixture_destroy() {
     [ -n "${FIXTURE_ROOT:-}" ] && rm -rf "$FIXTURE_ROOT"
+}
+
+# Leaves the interpreter in place but makes it fail, which is the shape of a
+# course environment broken by a failed staff update: the file is there, the
+# launcher's -x test passes, and only running it reveals the problem.
+fixture_break_course_python() {
+    cat > "$FAKE_ENV_ROOT/default/bin/python" <<'PY'
+#!/bin/sh
+echo "ImportError: broken course environment" >&2
+exit 1
+PY
+    chmod 755 "$FAKE_ENV_ROOT/default/bin/python"
+}
+
+# The unprovisioned case: nothing at <environment_root>/default at all.
+fixture_remove_course_env() {
+    rm -rf "$FAKE_ENV_ROOT/default"
 }
 
 # Builds the stub image once and caches it. Echoes a path for apptainer exec.
