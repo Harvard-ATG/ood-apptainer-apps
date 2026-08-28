@@ -53,8 +53,8 @@ lc_make_state_dirs \
     "${JOB_STATE}/xdg/data" \
     "${JOB_TMP}" \
     "${SSH_MASK}" \
-    "${HOME}/.config/ood-huit/claude" \
-    "${HOME}/.config/ood-huit/codex" \
+    "${HOME}/.claude" \
+    "${HOME}/.codex" \
     "${HOME}/.config/gh" || { log "ERROR: could not create state directories"; exit 1; }
 
 ENV_FILE="${JOBROOT}/container.env"
@@ -62,8 +62,8 @@ lc_write_env_file "${ENV_FILE}" \
     "ENVIRONMENT_ROOT=${ENVIRONMENT_ROOT}" \
     "COURSE_ENV=${COURSE_ENV}" \
     "COURSE_ENV_STATUS=${COURSE_ENV_STATUS}" \
-    "CLAUDE_CONFIG_DIR=${HOME}/.config/ood-huit/claude" \
-    "CODEX_HOME=${HOME}/.config/ood-huit/codex" \
+    "CLAUDE_CONFIG_DIR=${HOME}/.claude" \
+    "CODEX_HOME=${HOME}/.codex" \
     "GH_CONFIG_DIR=${HOME}/.config/gh" \
     "DISABLE_AUTOUPDATER=1" \
     "XDG_CONFIG_HOME=/state/xdg/config" \

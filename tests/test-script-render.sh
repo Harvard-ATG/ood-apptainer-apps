@@ -83,11 +83,21 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: sets DISABLE_AUTOUPDATER in the environment file"
     assert_contains "$body" "DISABLE_AUTOUPDATER=1"
 
-    it "$app: isolates Claude credentials under the persistent config root"
-    assert_contains "$body" ".config/ood-huit/claude"
+    it "$app: points Claude at its DEFAULT config location in the real home"
+    # The default location, not a bespoke one: any tool, extension, plugin or
+    # skill that discovers configuration by convention then works with no
+    # special-casing, and there is no host/container discrepancy.
+    assert_contains "$body" 'CLAUDE_CONFIG_DIR=${HOME}/.claude'
 
-    it "$app: isolates Codex credentials under the persistent config root"
-    assert_contains "$body" ".config/ood-huit/codex"
+    it "$app: points Codex at its DEFAULT config location in the real home"
+    assert_contains "$body" 'CODEX_HOME=${HOME}/.codex'
+
+    it "$app: no longer uses the bespoke ood-huit config root"
+    assert_not_contains "$body" "ood-huit"
+
+    it "$app: creates both credential directories so the CLIs never race to mkdir"
+    assert_contains "$body" '"${HOME}/.claude"'
+    assert_contains "$body" '"${HOME}/.codex"' 
 done
 
 it "jupyterlab: runs the JupyterLab in-container launcher"

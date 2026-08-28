@@ -30,7 +30,7 @@ it "file contains no unexpanded shell variable"
 assert_not_contains "$(cat "$ENVF")" '$'
 
 it "rejects an unexpanded value, because Apptainer does not expand env files"
-assert_failure lc_write_env_file "$ENVF" 'CLAUDE_CONFIG_DIR=$HOME/.config/ood-huit/claude'
+assert_failure lc_write_env_file "$ENVF" 'CLAUDE_CONFIG_DIR=$HOME/.claude'
 
 it "rejects a value containing a newline"
 assert_failure lc_write_env_file "$ENVF" "$(printf 'A=one\nB=two')"
