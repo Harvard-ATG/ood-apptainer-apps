@@ -15,7 +15,8 @@ it "versions.env is sourceable and defines every pin"
 assert_success bash -c ". $COMMON/versions.env"
 
 for v in JUPYTER_BASE_TAG UBUNTU_TAG NODE_VERSION CLAUDE_CODE_VERSION \
-         CODEX_VERSION CODE_SERVER_VERSION UV_VERSION MICROMAMBA_VERSION; do
+         CODEX_VERSION CODE_SERVER_VERSION UV_VERSION MICROMAMBA_VERSION \
+         CLAUDE_EXT_ID CLAUDE_EXT_VERSION CODEX_EXT_ID CODEX_EXT_VERSION; do
     it "versions.env defines $v"
     val=$(bash -c ". $COMMON/versions.env && printf '%s' \"\${$v:-}\"")
     assert_not_contains "|$val|" "||"
@@ -68,6 +69,12 @@ s=$(cat "$CC/managed-settings.json")
 assert_contains "$s" "failIfUnavailable"
 assert_contains "$s" "disableBypassPermissionsMode"
 
+it "an unavailable sandbox degrades the session rather than failing it"
+# The key's presence says nothing about its value. Flipped to true, a sandbox
+# that cannot start turns into a failed student session instead of an
+# unsandboxed one, so assert the value explicitly.
+assert_eq "$(python3 -c "import json;print(json.load(open('$CC/managed-settings.json'))['sandbox']['failIfUnavailable'])")" "False"
+
 it "no credential or token appears in the policy files"
 for f in "$CC"/*.json; do
     assert_not_contains "$(tr '[:upper:]' '[:lower:]' < "$f")" "sk-"
@@ -110,6 +117,12 @@ dr=$(python3 -c "import tomllib;print(' '.join(tomllib.load(open('$CX/requiremen
 for p in ".ssh" "gh" "ood-huit/claude"; do
     assert_contains "$dr" "$p"
 done
+
+it "deny_read does NOT deny Codex its own credentials, which would break login"
+# The mirror image of the Claude Code assertion above. Each agent denies only
+# the OTHER agent's credential path; a regression that added Codex's own path
+# here would break Codex login and, asserting presence only, pass silently.
+assert_not_contains "$dr" "ood-huit/codex"
 
 it "deny_read uses no ./-relative entries, which the schema rejects"
 assert_not_contains "$dr" "./"
