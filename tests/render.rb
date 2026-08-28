@@ -77,6 +77,15 @@ class NilClass
   end
 end
 
+# ActiveSupport's String#blank? checks for whitespace-only content, not merely
+# zero length -- Object#empty? alone would call "  " (a realistic OOD form
+# value: a field a user left as spaces) non-blank, which is wrong.
+class String
+  def blank?
+    /\A[[:space:]]*\z/.match?(self)
+  end
+end
+
 # OOD hands submit.yml.erb the form values as BARE LOCALS, not through context.
 # An attribute whose value is a widget hash arrives as its value: entry, and
 # every value arrives as a string, because it came back from an HTML form.
