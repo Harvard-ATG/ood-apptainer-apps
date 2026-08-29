@@ -105,18 +105,17 @@ it "allowed_permission_profiles is a table, not an array"
 assert_eq "$(python3 -c "import tomllib;print(type(tomllib.load(open('$CX/requirements.toml','rb'))['allowed_permission_profiles']).__name__)")" "dict"
 
 it "full access is denied by omission"
+# The table is the complete allowlist, so a profile is denied by not appearing.
+# That makes this assertion the one guarding against a future Codex adding a
+# permissive built-in that would otherwise be picked up by default.
 prof=$(python3 -c "import tomllib;print(sorted(tomllib.load(open('$CX/requirements.toml','rb'))['allowed_permission_profiles']))")
-assert_contains "$prof" "danger-full-access"
+assert_not_contains "$prof" "danger-full-access"
 
-it "approval policies stay restrictive, which is now the ONLY interactive control"
-# Load-bearing, and easy to mistake for redundant now that the profile is
-# ":danger-full-access". Measured 2026-08-28, /status in a live session reports:
-#
-#   Permissions:  No Sandbox (Ask for approval)
-#
-# The filesystem sandbox is gone, but approval prompting SURVIVES, and it does
-# so because of this list. Widening it to include a bypassing policy would leave
-# Codex with no restraint whatsoever inside the container.
+it "approval policies stay restrictive"
+# Independent of the filesystem sandbox, not redundant with it. Approval
+# prompting is governed by this list alone -- it survives even when the sandbox
+# is entirely unavailable, which is what makes it the last restraint on Codex
+# inside the container. Widening it to a bypassing policy would remove that.
 ap=$(python3 -c "import tomllib;print(' '.join(tomllib.load(open('$CX/requirements.toml','rb'))['allowed_approval_policies']))")
 assert_contains "$ap" "untrusted"
 assert_contains "$ap" "on-request"
@@ -126,13 +125,19 @@ for bad in never bypass full-auto danger; do
     assert_not_contains "$ap" "$bad"
 done
 
-it "ONLY the working profile is allowed, so no student can select a broken one"
-# Measured 2026-08-28: :read-only and :workspace both require the sandbox
-# helper, whose two backends (bundled bwrap, legacy Landlock) BOTH fail inside
-# this cluster's unprivileged Apptainer. Offering them would hand a student a
-# bwrap crash instead of a restricted session.
-assert_not_contains "$prof" "read-only"
-assert_not_contains "$prof" "workspace"
+it "the restrictive profiles are the ones offered"
+# Both require Codex's sandbox helper, which needs a bindable container root.
+# The launcher's --underlay provides one; without it the helper cannot start and
+# offering these profiles hands a student a bwrap crash instead of a restricted
+# session. This assertion is therefore coupled to that flag.
+assert_contains "$prof" "read-only"
+assert_contains "$prof" "workspace"
+
+it "the default profile is a restrictive one, not full access"
+# The allowlist above says what a student MAY select; this says where a session
+# STARTS. A permissive default with restrictive options available is not the
+# same control, and the difference is invisible unless asserted separately.
+assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirements.toml','rb'))['default_permissions'])")" ":workspace"
 
 it "managed hooks are required"
 assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirements.toml','rb'))['allow_managed_hooks_only'])")" "True"
@@ -143,23 +148,21 @@ assert_eq "$(python3 -c "import tomllib;print(tomllib.load(open('$CX/requirement
 it "an explicit MCP allowlist is present and empty"
 assert_eq "$(python3 -c "import tomllib;print(len(tomllib.load(open('$CX/requirements.toml','rb'))['mcp_servers']))")" "0"
 
-it "there is NO deny_read block, because declaring one makes Codex unusable here"
-# This asserts the ABSENCE of a security control, which deserves an explanation
-# rather than a silent deletion.
-#
-# Declaring any read denial makes the Codex runtime require an enforcing sandbox
-# mode, which requires its helper, which cannot run inside this cluster's
-# unprivileged Apptainer. Measured directly: with the denials present and
-# :danger-full-access the only allowed profile, Codex refuses to start with
-#
-#   invalid value for `sandbox_mode`: `DangerFullAccess` is not in the allowed
-#   set [read-only, workspace-write] (set by /etc/codex/requirements.toml)
-#
-# where that allowed set is derived from the denials themselves. Restoring the
-# block without first fixing the sandbox at the Apptainer level breaks Codex for
-# every student. See the long comment in requirements.toml for how to restore it.
-fs=$(python3 -c "import tomllib;print('filesystem' in tomllib.load(open('$CX/requirements.toml','rb')).get('permissions',{}))")
-assert_eq "$fs" "False"
+it "the deny_read block denies the OTHER agent's credentials and the token stores"
+# Declaring ANY read denial makes the Codex runtime require an enforcing sandbox
+# mode -- the allowed set of modes is derived from the denials themselves. So
+# this block cannot coexist with an unavailable sandbox: without the launcher's
+# --underlay, Codex refuses to start rather than running unrestricted.
+dr=$(python3 -c "import tomllib;print(' '.join(tomllib.load(open('$CX/requirements.toml','rb'))['permissions']['filesystem']['deny_read']))")
+for path in .ssh .config/gh .claude .aws .gnupg .netrc; do
+    assert_contains "$dr" "$path"
+done
+
+it "deny_read mirrors Claude's asymmetry: each agent is denied the OTHER's credentials"
+# ~/.codex is deliberately NOT denied here, exactly as ~/.claude is not denied in
+# Claude's managed-settings.json. Denying an agent its own credential store would
+# break its sign-in rather than protect anything.
+assert_not_contains "$dr" ".codex"
 
 RECIPE="$COMMON/install-ai-agents.sh"
 
