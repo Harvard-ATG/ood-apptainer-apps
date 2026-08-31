@@ -295,9 +295,14 @@ lc_run() {
     #
     #   bwrap: Can't bind mount /oldroot/ on /newroot/: Invalid argument
     #
-    # Codex sandboxes even its read of AGENTS.md, so that stops it starting at all;
-    # Claude Code degrades silently. --underlay assembles the root as a bindable
-    # tmpfs instead, and every bwrap in the image then succeeds.
+    # Both agents hit this, at different moments, and the asymmetry is the useful
+    # diagnostic. Codex sandboxes even its read of AGENTS.md, so it fails at
+    # session start, fatally, every time. Claude Code bootstraps its sandbox on
+    # the first Bash tool call instead, so the same failure surfaces later, as a
+    # refusal that names the bwrap error and points at /sandbox. "Claude seemed
+    # fine" usually means no Bash call has been made yet, not that its sandbox is
+    # inert. --underlay assembles the root as a bindable tmpfs instead, and every
+    # bwrap in the image then succeeds.
     #
     # Containment is unaffected either way: every mount underlay adds is sourced
     # from the image or the session tmpfs, never the host disk, and the ~/.ssh mask
@@ -316,6 +321,11 @@ lc_run() {
     # bind source, and it appears only under the complete flag set, which is why
     # a minimal `bwrap --ro-bind / / /bin/true` probe passes without it.
     #
+    # The two are not alternatives, so do not drop one on the strength of the
+    # other. Removing --underlay while keeping this bind reproduces the original
+    # failure unchanged: bwrap dies at its very first bind and never reaches /dev
+    # at all. Both are required, and they fail at different stages.
+    #
     # It is kept here rather than in lc_build_binds deliberately. That array is
     # the host-data exposure surface -- the paths this session can see of the
     # user's filesystem -- and tests/test-binds.sh asserts its exact size so that
@@ -324,8 +334,9 @@ lc_run() {
     #
     # KNOWN EXPIRY: Apptainer has deprecated --underlay and will remove it. The
     # deprecation warning it prints into the session log on every launch is
-    # expected, not a fault. When an upgrade drops the flag the agent sandboxes
-    # break again, and Codex stops starting because its policy file requires them;
+    # expected, not a fault. When an upgrade drops the flag BOTH agents lose their
+    # sandbox -- Codex stops starting at all, because its policy file requires the
+    # helper, and Claude Code begins refusing Bash tool calls.
     # tests/test-containment.sh asserts the flag so that fails loudly here instead.
     "${LC_STERILE[@]}" "$bin" exec \
         --underlay \

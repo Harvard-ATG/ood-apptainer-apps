@@ -138,7 +138,8 @@ assert_not_contains "$REAL_ARGV" "s3cr3t-must-not-appear-on-argv"
 it "--underlay appears in the real argv"
 # The one flag here that is not about containment: it gives the container a
 # bindable root, without which bubblewrap cannot pivot_root and both agents lose
-# their own filesystem sandbox -- Codex refusing to start at all.
+# their own filesystem sandbox -- Codex refusing to start at all, Claude Code
+# refusing its first Bash tool call.
 #
 # Asserted because two policy settings depend on it. The restrictive Codex
 # profiles and the deny_read block in requirements.toml are only usable while the
