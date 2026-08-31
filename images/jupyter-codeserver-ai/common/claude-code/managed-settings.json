@@ -1,6 +1,7 @@
 {
   "env": {
-    "DISABLE_AUTOUPDATER": "1"
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"
   },
   "sandbox": {
     "enabled": true,

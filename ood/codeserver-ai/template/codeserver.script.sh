@@ -40,6 +40,18 @@ unset PS1 PROMPT_COMMAND
 # resets PATH, which would discard the course-environment prepend below.
 export SHELL=/bin/bash
 
+# Claude Code env policy. Exported here as well as declared in
+# /etc/claude-code/managed-settings.json, because on a Harvard EDU login a
+# remote enterprise policy wins source selection and that file is skipped
+# entirely -- the process environment is a layer no precedence can outrank.
+#
+# IDE_SKIP_AUTO_INSTALL stops the CLI reinstalling the extension the image
+# ships. Its check is an upgrade check, not a presence check, so any drift
+# between CLAUDE_EXT_VERSION and CLAUDE_CODE_VERSION makes it force-install
+# into image-owned /opt/code-server/extensions, which the session cannot write.
+export DISABLE_AUTOUPDATER=1
+export CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL=1
+
 USER_DATA_DIR=/state/code-server
 SEED_SETTINGS=/etc/code-server/settings.json
 mkdir -p "${USER_DATA_DIR}/User" || { log "ERROR: cannot create ${USER_DATA_DIR}/User"; exit 1; }

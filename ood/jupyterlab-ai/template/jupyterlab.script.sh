@@ -40,6 +40,15 @@ unset PS1 PROMPT_COMMAND
 # resets PATH, which would discard the course-environment prepend below.
 export SHELL=/bin/bash
 
+# Claude Code env policy. Exported here as well as declared in
+# /etc/claude-code/managed-settings.json, because on a Harvard EDU login a
+# remote enterprise policy wins source selection and that file is skipped
+# entirely -- the process environment is a layer no precedence can outrank.
+# The codeserver launcher also exports CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL, which
+# has no meaning here: a JupyterLab terminal sets no TERM_PROGRAM and writes no
+# IDE lockfile, so the CLI never reaches its extension-install path.
+export DISABLE_AUTOUPDATER=1
+
 KERNEL_DIR="${JUPYTER_DATA_DIR:-/state/jupyter/data}/kernels"
 CONFIG_DIR="${JUPYTER_CONFIG_DIR:-/state/jupyter/config}"
 IMAGE_PYTHON=/opt/conda/bin/python
