@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 . tests/lib/assert.sh
 
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
+REAL_HOME="$HOME"
 BIN="$ROOT/bin"; mkdir -p "$BIN"
 
 # Stub managers. They record argv and build a prefix that looks provisioned, so
@@ -12,6 +13,7 @@ BIN="$ROOT/bin"; mkdir -p "$BIN"
 cat > "$BIN/micromamba" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$@" >> "$STUB_LOG"
+printf 'HOME=%s\n' "${HOME:-<unset>}" >> "$STUB_LOG.env"
 for a in "$@"; do case "$a" in --prefix=*) P=${a#--prefix=};; esac; done
 [ -n "${P:-}" ] || { i=1; for a in "$@"; do [ "$a" = --prefix ] && P=$(eval echo \"\$$((i+1))\"); i=$((i+1)); done; }
 mkdir -p "$P/bin"
@@ -68,6 +70,20 @@ assert_success test -f "$ENVROOT/README.md"
 
 it "manager caches go to provisioning scratch, not the course folder"
 assert_failure test -d "$ENVROOT/.mamba"
+
+it "the manager runs with HOME redirected under scratch"
+# Not redundant with the cache variables. The provisioning container binds no
+# home, so an inherited HOME names a path that does not exist; micromamba writes
+# there anyway -- the sharded-repodata index and the environment registry -- and
+# dies with "cannot create directories: Read-only file system". Assert on the
+# HOME the manager actually saw, not on the export, so the redirect is checked
+# where it has to hold.
+assert_contains "$(cat "$ROOT/stub.log.env")" "HOME=$ROOT/scratch/home"
+
+it "the manager does NOT inherit the invoking user's home"
+# The consequence, stated separately: the value above must not be the real HOME,
+# which is what an unset or unexported redirect would leave behind.
+assert_not_contains "$(cat "$ROOT/stub.log.env")" "HOME=$REAL_HOME"
 
 it "it refuses to overwrite an existing default"
 OUT=$(provision "$ENVROOT")

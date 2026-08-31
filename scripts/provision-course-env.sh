@@ -139,8 +139,20 @@ mkdir -p "$SCRATCH" || fail "cannot create scratch directory '${SCRATCH}'"
 MAMBA_ROOT_PREFIX="${SCRATCH}/mamba-root"
 UV_CACHE_DIR="${SCRATCH}/uv-cache"
 TMPDIR="${SCRATCH}/tmp"
-export MAMBA_ROOT_PREFIX UV_CACHE_DIR TMPDIR
-mkdir -p "$MAMBA_ROOT_PREFIX" "$UV_CACHE_DIR" "$TMPDIR" \
+# HOME is redirected too, and it is not redundant with the three above. This
+# container binds no home, so $HOME names a path that does not exist and cannot
+# be created. micromamba writes there regardless of MAMBA_ROOT_PREFIX -- the
+# sharded-repodata index to ~/.cache/conda, the environment registry to
+# ~/.conda/environments.txt -- and the create dies with
+#
+#   critical libmamba filesystem error: cannot create directories:
+#   Read-only file system [<home>/.cache/conda/pkgs/cache/shards]
+#
+# Redirecting HOME covers both. XDG_CACHE_HOME alone does not: it moves the
+# shard cache and then fails on the registry instead.
+HOME="${SCRATCH}/home"
+export MAMBA_ROOT_PREFIX UV_CACHE_DIR TMPDIR HOME
+mkdir -p "$MAMBA_ROOT_PREFIX" "$UV_CACHE_DIR" "$TMPDIR" "$HOME" \
     || fail "cannot create manager cache directories under scratch '${SCRATCH}'"
 
 # --- Step 7: create the prefix at its FINAL absolute path -------------------
