@@ -146,6 +146,14 @@ it "--underlay appears in the real argv"
 # That must fail here rather than in a session.
 assert_contains "$REAL_ARGV" "--underlay"
 
+it "/dev/full is bound back in, because --containall's fake /dev omits it"
+# Codex's real sandbox binds /dev/full while assembling itself, and bwrap cannot
+# bind a source that does not exist -- so without this, every Codex session dies
+# with "Can't bind mount /oldroot/dev/full on /newroot/dev/full". It is invisible
+# to a minimal bwrap probe and only appears under the complete flag set, which is
+# why it is asserted on the real argv rather than tested in isolation.
+assert_contains "$REAL_ARGV" "/dev/full:/dev/full"
+
 it "--containall appears in the real argv"
 assert_contains "$REAL_ARGV" "--containall"
 
