@@ -135,6 +135,25 @@ REAL_ARGV_LINES=$'\n'"$REAL_ARGV"$'\n'
 it "the secret value does not appear in the real Apptainer argv"
 assert_not_contains "$REAL_ARGV" "s3cr3t-must-not-appear-on-argv"
 
+it "--underlay appears in the real argv"
+# The one flag here that is not about containment: it gives the container a
+# bindable root, without which bubblewrap cannot pivot_root and both agents lose
+# their own filesystem sandbox -- Codex refusing to start at all.
+#
+# Asserted because two policy settings depend on it. The restrictive Codex
+# profiles and the deny_read block in requirements.toml are only usable while the
+# sandbox helper can run, so dropping this flag breaks Codex for every student.
+# That must fail here rather than in a session.
+assert_contains "$REAL_ARGV" "--underlay"
+
+it "/dev/full is bound back in, because --containall's fake /dev omits it"
+# Codex's real sandbox binds /dev/full while assembling itself, and bwrap cannot
+# bind a source that does not exist -- so without this, every Codex session dies
+# with "Can't bind mount /oldroot/dev/full on /newroot/dev/full". It is invisible
+# to a minimal bwrap probe and only appears under the complete flag set, which is
+# why it is asserted on the real argv rather than tested in isolation.
+assert_contains "$REAL_ARGV" "/dev/full:/dev/full"
+
 it "--containall appears in the real argv"
 assert_contains "$REAL_ARGV" "--containall"
 

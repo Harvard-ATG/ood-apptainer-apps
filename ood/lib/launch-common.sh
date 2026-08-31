@@ -285,12 +285,56 @@ lc_run() {
 
     lc_sterile_prefix
 
+    # --underlay is what makes the AGENTS' OWN sandboxes work. It is the one flag
+    # here that is not about containment.
+    #
+    # Apptainer's default overlay leaves the container root MNT_UNBINDABLE, and on
+    # this cluster's kernel that flag survives the clone(CLONE_NEWNS|CLONE_NEWUSER)
+    # that bubblewrap makes for itself. bwrap's next step binds /oldroot onto
+    # /newroot, the kernel rejects a bind whose source is unbindable, and it dies:
+    #
+    #   bwrap: Can't bind mount /oldroot/ on /newroot/: Invalid argument
+    #
+    # Codex sandboxes even its read of AGENTS.md, so that stops it starting at all;
+    # Claude Code degrades silently. --underlay assembles the root as a bindable
+    # tmpfs instead, and every bwrap in the image then succeeds.
+    #
+    # Containment is unaffected either way: every mount underlay adds is sourced
+    # from the image or the session tmpfs, never the host disk, and the ~/.ssh mask
+    # survives it. The bind allowlist below remains the security boundary.
+    #
+    # -B /dev/full:/dev/full repairs what --containall removes. --containall
+    # replaces /dev with a minimal fake one providing null, zero, random, urandom
+    # and tty; measured against this image, the only entries it drops are `core`
+    # and `full`. Codex's real workspace-write sandbox binds /dev/full while
+    # assembling itself, and bwrap cannot bind a source that does not exist:
+    #
+    #   bwrap: Can't bind mount /oldroot/dev/full on /newroot/dev/full:
+    #          No such file or directory
+    #
+    # This is NOT the unbindable-root failure --underlay fixes; it is a missing
+    # bind source, and it appears only under the complete flag set, which is why
+    # a minimal `bwrap --ro-bind / / /bin/true` probe passes without it.
+    #
+    # It is kept here rather than in lc_build_binds deliberately. That array is
+    # the host-data exposure surface -- the paths this session can see of the
+    # user's filesystem -- and tests/test-binds.sh asserts its exact size so that
+    # statement stays true. /dev/full is a character device, not a path into any
+    # filesystem, and it exists only because of the --containall directly above.
+    #
+    # KNOWN EXPIRY: Apptainer has deprecated --underlay and will remove it. The
+    # deprecation warning it prints into the session log on every launch is
+    # expected, not a fault. When an upgrade drops the flag the agent sandboxes
+    # break again, and Codex stops starting because its policy file requires them;
+    # tests/test-containment.sh asserts the flag so that fails loudly here instead.
     "${LC_STERILE[@]}" "$bin" exec \
+        --underlay \
         --containall \
         --cleanenv \
         --no-mount home,cwd,tmp,hostfs,bind-paths \
         --home "${HOME}:${HOME}" \
         --env-file "$env_file" \
+        -B /dev/full:/dev/full \
         "${LC_BINDS[@]}" \
         "$image" "$@"
 }

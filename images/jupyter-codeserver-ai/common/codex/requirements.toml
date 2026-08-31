@@ -23,64 +23,44 @@ allowed_approval_policies = ["untrusted", "on-request"]
 
 # The default profile every session starts in.
 #
-# MEASURED 2026-08-28: this is ":danger-full-access" because it is the only
-# profile that starts at all on this cluster, not because it is desirable.
-# Codex sandboxes even its read of AGENTS.md, through a helper with two
-# backends, and neither works inside this cluster's unprivileged Apptainer:
-# its own bundled bwrap cannot pivot_root ("Can't bind mount /oldroot/ on
-# /newroot/"), and the legacy Landlock backend cannot enforce restrictive
-# profiles at all. Verified not to be caused by our launch flags -- a bare
-# `apptainer exec <sif> codex` fails identically.
-default_permissions = ":danger-full-access"
+# THIS DEPENDS ON THE LAUNCHER'S --underlay FLAG. Codex's filesystem sandbox is a
+# bubblewrap helper that cannot pivot_root inside an Apptainer whose root is left
+# unbindable by the default overlay; it dies with "bwrap: Can't bind mount
+# /oldroot/ on /newroot/". Because Codex sandboxes even its read of AGENTS.md,
+# that stops a session starting rather than degrading a feature. See the comment
+# on lc_run in ood/lib/launch-common.sh.
+#
+# So if --underlay is removed from the launcher, or an Apptainer upgrade drops
+# it, Codex stops starting for every student. tests/test-containment.sh asserts
+# the flag so that coupling fails in CI instead.
+default_permissions = ":workspace"
 
 # The table is the COMPLETE allowlist. Anything omitted is denied, including
 # built-ins added in future Codex versions -- so a future ":danger-something"
 # cannot appear by default.
 [allowed_permission_profiles]
-# ONLY the working profile is allowed. ":read-only" and ":workspace" are
-# omitted deliberately: both require the sandbox helper, so a student who
-# selected one would get a bwrap crash rather than a restricted session. An
-# unreachable broken option is worse than no option.
-":danger-full-access" = true
+":workspace" = true
+":read-only" = true
 
-# NO [permissions.filesystem] deny_read BLOCK -- and this absence is load-bearing.
+# The cross-agent read denial. Inseparable from the profile above: declaring ANY
+# read denial makes the runtime require an enforcing sandbox mode, because the
+# allowed set of modes is DERIVED FROM THESE DENIALS. A non-enforcing profile
+# alongside this block is rejected at startup as an invalid sandbox_mode, so this
+# block and a non-enforcing Codex cannot coexist.
 #
-# It used to deny the OTHER agent's credentials and the GitHub token:
-#   ~/.ssh, ~/.config/gh, ~/.claude, ~/.aws, ~/.gnupg, ~/.netrc
-#
-# Declaring ANY read denial makes the runtime require an enforcing sandbox mode,
-# which requires the helper, which cannot run here. Measured directly: with the
-# denials present and ":danger-full-access" the only allowed profile, Codex
-# refuses to start and says why --
-#
-#   invalid value for `sandbox_mode`: `DangerFullAccess` is not in the allowed
-#   set [read-only, workspace-write] (set by /etc/codex/requirements.toml)
-#
-# -- where that allowed set is DERIVED FROM THE DENIALS THEMSELVES. So the list
-# and a working Codex are mutually exclusive on this cluster. Restoring it
-# without first fixing the sandbox makes Codex unusable for every student, which
-# is why tests/test-recipe.sh asserts it stays absent.
-#
-# What this costs is NARROWER than the profile name suggests. Measured in a live
-# session, /status reports:
-#
-#   Permissions:  No Sandbox (Ask for approval)
-#
-# The filesystem sandbox is gone; approval prompting SURVIVES, because
-# allowed_approval_policies above still governs it. Codex still asks before it
-# runs anything. So what this costs, precisely: Codex no longer enforces its own
-# filesystem restrictions. The container mount boundary is untouched and was always the
-# real boundary -- agent policy here has always been defence in depth -- and
-# ~/.ssh remains masked by the launcher's bind regardless. What is lost is an
-# additional mitigation over an exposure the design already accepts under
-# "Accepted home-directory exposure".
-#
-# TO RESTORE: fix the sandbox at the Apptainer level (the failure is bwrap
-# unable to bind /oldroot over /newroot, which points at mount propagation),
-# then set default_permissions back to ":workspace", re-allow the restrictive
-# profiles, and reinstate the block above. Claude Code is very likely failing
-# the same way today and degrading silently behind failIfUnavailable: false, so
-# the same fix would restore both.
+# The asymmetry is deliberate and mirrors Claude's managed-settings.json: each
+# agent is denied the OTHER agent's credentials, not its own. ~/.claude is denied
+# here; ~/.codex is denied there. Denying an agent its own store would break its
+# sign-in rather than protect anything.
+[permissions.filesystem]
+deny_read = [
+  "~/.ssh",
+  "~/.config/gh",
+  "~/.claude",
+  "~/.aws",
+  "~/.gnupg",
+  "~/.netrc",
+]
 
 [features]
 plugins = false
