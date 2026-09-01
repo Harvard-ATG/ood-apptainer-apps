@@ -67,6 +67,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 |---|---|
 | `submit-build-image.sh` | Submits the compute-node job that builds one image |
 | `build-image.sh` | Builds one immutable image artifact with checksum and metadata sidecars |
+| `deploy-image.sh` | Publishes one built artifact and its sidecars to both cluster image roots |
 | `submit-provision-course-env.sh` | Submits the compute-node job that provisions one course's Python environment |
 | `provision-course-env.sh` | The image-side script that job runs |
 | `render-forms.sh` | Release gate — renders every sub-app against its templates and cross-checks them |

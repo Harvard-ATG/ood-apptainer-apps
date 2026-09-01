@@ -70,6 +70,25 @@ it "the deployed artifact is world-readable"
 # student can read -- silent until every session in the course fails to start.
 assert_file_mode "$CANONICAL/$FAMILY/$NAME.sif" 644
 
+# The mode tests above run under whatever umask the suite inherits, which on a
+# developer's machine is usually 022 -- permissive enough that a script setting
+# no mode at all would still pass them. These pin the behaviour under the umask
+# that actually breaks a deploy.
+
+it "the artifact is world-readable even when the deploying account's umask is not"
+new_case
+( umask 077; deploy "$BUILD/$NAME.sif" >/dev/null )
+assert_file_mode "$CANONICAL/$FAMILY/$NAME.sif" 644
+
+it "the family directory is world-traversable under that same umask"
+# Files a student cannot reach are as unusable as files they cannot read, and
+# this directory is created by the first deploy of a new family -- so its mode
+# comes from the deploying account unless the script sets it.
+assert_file_mode "$CANONICAL/$FAMILY" 755
+
+it "the fast root's family directory too"
+assert_file_mode "$FAST/$FAMILY" 755
+
 it "it takes the destination family from the metadata, never from the filename"
 # The artifact name carries no family, so a script that guessed would have to
 # invent one. Renaming the family in the sidecar must move the deploy.

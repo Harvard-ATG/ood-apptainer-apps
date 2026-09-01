@@ -6,8 +6,12 @@
 # Copies the artifact and both sidecars to the canonical root (EFS) and then the
 # fast root (Lustre), verifying the checksum at each. Deliberately does NOT
 # update any sub-app's imagefile: attribute -- that is a commit, reviewed and
-# reverted like one, while this is an idempotent filesystem action. The line to
-# paste is printed at the end.
+# reverted like one, while this only puts bytes in place. The line to paste is
+# printed at the end.
+#
+# Not idempotent, deliberately: re-running a completed deploy is refused rather
+# than repeated, because a committed imagefile: string identifies one exact
+# build for as long as a sub-app names it.
 #
 # A file copy needs no Apptainer and no compute node, so this runs wherever you
 # type it.
@@ -104,6 +108,10 @@ fi
 deploy_into() {  # <image root>
     local dest="$1/${FAMILY}"
     mkdir -p "$dest" || return 1
+    # The directory too, not only what is in it: a 0700 family directory is
+    # unreadable to students however correct the modes inside it are, and it is
+    # created here on the first deploy of a new family.
+    chmod 0755 "$dest" || return 1
     local f
     for f in "${FILES[@]}"; do
         cp "${SRC_DIR}/${f}" "${dest}/${f}" || return 1
