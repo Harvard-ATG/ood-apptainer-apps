@@ -79,8 +79,8 @@ The launcher is split in two halves: the host-side half validates paths and deci
 
 | Variable | Default | Read by |
 |---|---|---|
-| `OOD_APPTAINER_IMAGE_ROOT_FAST` | `/scratch/apptainerImages` | launcher |
-| `OOD_APPTAINER_IMAGE_ROOT_CANONICAL` | `/shared/apptainerImages` | launcher |
+| `OOD_APPTAINER_IMAGE_ROOT_FAST` | `/scratch/apptainerImages` | launcher, `deploy-image.sh` |
+| `OOD_APPTAINER_IMAGE_ROOT_CANONICAL` | `/shared/apptainerImages` | launcher, `deploy-image.sh` |
 | `OOD_APPTAINER_BIN` | discovered via the Spack `apptainer` environment | launcher, `build-image.sh` |
 | `OOD_APPTAINER_SCRATCH_ROOT` | `/scratch/<user>/ood/apptainer` | launcher, `submit-provision-course-env.sh` |
 | `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `submit-provision-course-env.sh` |
@@ -106,6 +106,17 @@ bash tests/test-no-drift.sh
 ```
 
 Neither replaces the smoke checklist, which covers what no automated suite can reach from a stub image — real symlink resolution, Canvas group membership, and deployment file permissions among them.
+
+## Deploying an image
+
+```bash
+scripts/submit-build-image.sh jupyter-codeserver-ai/jupyterlab    # builds into build/
+scripts/deploy-image.sh build/jupyterlab-<stamp>-<commit>.sif     # publishes to both image roots
+```
+
+`deploy-image.sh` copies the artifact and both sidecars to the canonical root and then the fast root, verifying the checksum at each, and refuses to overwrite anything already deployed. It is a file copy, so it runs wherever you type it — no compute node, no Apptainer.
+
+It deliberately stops there. The `imagefile:` line it prints is for you to set in the sub-app and commit, because putting a new image in front of students is a reviewed change and this is not.
 
 ## Tests
 
