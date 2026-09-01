@@ -65,8 +65,11 @@ assert_eq "$(tr -d '[:space:]' < "$ENVROOT/manager")" "micromamba"
 it "it records the source file beside the prefixes"
 assert_success test -f "$ENVROOT/environment.yml"
 
-it "it writes the staff-facing README"
-assert_success test -f "$ENVROOT/README.md"
+it "it writes no documentation into the course folder"
+# The course folder is readable by every student on the course. Provisioning
+# records the manager and the source spec beside the prefixes, and nothing
+# else: prose for staff lives in docs/, in this repository.
+assert_failure test -f "$ENVROOT/README.md"
 
 it "manager caches go to provisioning scratch, not the course folder"
 assert_failure test -d "$ENVROOT/.mamba"
@@ -160,10 +163,6 @@ assert_failure test -f "$ENVROOT/manager"
 #     which would also be true if scratch were never used at all)
 #   - a full uv provisioning run (step 7's uv branch, and step 10's uv-only
 #     pyproject.toml/uv.lock copy), never exercised by the given suite
-#   - the README-note append design ruling: an optional per-course file
-#     appended verbatim, and its absence changing nothing
-#   - the actual repo-level move: README-template.md loses its marker
-#     mechanism, cs1090a gets its own README-note.md
 # Restore the good generic stub first; the previous test left micromamba
 # broken on purpose.
 cat > "$BIN/micromamba" <<'STUB'
@@ -286,28 +285,6 @@ for d in "$ROOT/scratch"/*/; do [ -d "$d" ] && FOUND_CACHE_DIR=1; done
 # shellcheck disable=SC2015  # not if/then/else, but _pass and _fail can't fail
 [ "$FOUND_CACHE_DIR" -eq 1 ] && _pass || _fail "no cache directory was created under $ROOT/scratch"
 
-it "it appends an optional per-course README note verbatim when present"
-ENVROOT=$(setup)
-printf 'COURSE-SPECIFIC-NOTE-MARKER\n' > "$ROOT/spec/README-note.md"
-provision "$ENVROOT" >/dev/null 2>&1
-assert_contains "$(cat "$ENVROOT/README.md")" "COURSE-SPECIFIC-NOTE-MARKER"
-
-it "it does not append a README note when the spec carries none"
-ENVROOT=$(setup)
-provision "$ENVROOT" >/dev/null 2>&1
-assert_not_contains "$(cat "$ENVROOT/README.md")" "COURSE-SPECIFIC-NOTE-MARKER"
-
-it "the rendered README does not leak the template's maintainer-facing HTML comments"
-# The template's substitution contract and README-note explanation are HTML
-# comments addressed to whoever renders the template (this script), not to
-# the teaching staff member who actually reads the shipped file.
-ENVROOT=$(setup)
-provision "$ENVROOT" >/dev/null 2>&1
-assert_not_contains "$(cat "$ENVROOT/README.md")" "<!--"
-
-it "the rendered README does not leak the substitution-contract prose"
-assert_not_contains "$(cat "$ENVROOT/README.md")" "Substitution contract"
-
 ENVROOT=$(setup)
 OUT=$(provision "$ENVROOT")
 
@@ -407,18 +384,14 @@ assert_success test -f "$ENVROOT/pyproject.toml"
 it "uv: it copies uv.lock beside the prefixes"
 assert_success test -f "$ENVROOT/uv.lock"
 
-it "uv: it writes the staff-facing README"
-assert_success test -f "$ENVROOT/README.md"
+it "uv: it writes no documentation into the course folder"
+assert_failure test -f "$ENVROOT/README.md"
 
-# --- The repo-level design ruling: move CS1090A's note out of the template --
-it "README-template.md no longer carries the course-specific removal markers"
-assert_failure grep -q "BEGIN COURSE-SPECIFIC" envs/README-template.md
-
-it "cs1090a's course-specific note now lives in its own file beside its spec"
-assert_success test -f envs/cs1090a/README-note.md
-
-it "the moved note still pins the otter-grader constraint"
-assert_contains "$(cat envs/cs1090a/README-note.md)" "otter-grader"
+it "cs1090a's otter-grader ceiling is recorded beside the pin it constrains"
+# The constraint lives in the dependency file so that whoever edits the pin
+# reads it. It is deliberately not shipped anywhere: the course folder is
+# readable by every student on the course.
+assert_contains "$(cat envs/cs1090a/environment.yml)" "consult ATG"
 
 # ---------------------------------------------------------------------------
 # scripts/build-course-env.sh: the admin wrapper that validates, submits ONE

@@ -10,8 +10,8 @@
 #       --course-folder <path> --scratch <dir> [--rebuild]
 #
 # Exit status is nonzero for every failure, and every failure names the path
-# involved. Staff records (manager, source files, README.md) are written only
-# after the new prefix validates; a prefix that fails validation is left with
+# involved. The records beside the prefix (manager, source files) are written
+# only after the new prefix validates; a prefix that fails validation is left with
 # no records at all, since a record is a claim that the prefix is usable.
 set -uo pipefail
 
@@ -259,43 +259,6 @@ else
         cp "${SPEC}/uv.lock" "${RESOLVED_ENV_ROOT}/uv.lock" \
             || fail "cannot copy uv.lock to '${RESOLVED_ENV_ROOT}'"
     fi
-fi
-
-TEMPLATE="${REPO_ROOT}/envs/README-template.md"
-[ -f "$TEMPLATE" ] || fail "README template missing at '${TEMPLATE}'"
-
-# The spec directory's own basename is the only course identifier this script
-# is given (there is no --course flag; the interface is spec/root/folder/
-# scratch only), and it is exactly how the spec directories are already named
-# (am115, cs1090a) -- uppercased to match the display name used elsewhere
-# (the environment.yml headers, e.g. "AM115").
-COURSE_NAME=$(basename "$SPEC" | tr '[:lower:]' '[:upper:]')
-
-# The template's HTML comments are addressed to whoever renders it (this
-# script), not to the teaching staff member who will actually read the
-# shipped file -- so they are stripped, not merely substituted around. This
-# is safe specifically because the template's own substitution contract
-# guarantees every comment opens with "<!--" alone on its line and closes
-# with "-->" alone on its line, never nested: a sed range delete on those
-# exact markers removes each block in full. If a future template ever put
-# comment markers on a line with other content, this would need to become a
-# real HTML-comment-aware pass (or the contract text could move to a sibling
-# file that is never rendered) -- but for this template it is not fragile.
-sed -e "s/__COURSE__/${COURSE_NAME}/g" \
-    -e "s/__MANAGER__/${MANAGER}/g" \
-    -e "s/__PYTHON_VERSION__/${PY_VERSION}/g" \
-    "$TEMPLATE" \
-    | sed '/<!--/,/-->/d' \
-    > "${RESOLVED_ENV_ROOT}/README.md" \
-    || fail "cannot render README to '${RESOLVED_ENV_ROOT}/README.md'"
-
-# An optional per-course note, appended verbatim when the spec carries one.
-# This replaces the template's old BEGIN/END COURSE-SPECIFIC marker mechanism:
-# "does this course have a note" is now a test -f, not a marker scan that
-# every other course's render had to skip correctly.
-if [ -f "${SPEC}/README-note.md" ]; then
-    cat "${SPEC}/README-note.md" >> "${RESOLVED_ENV_ROOT}/README.md" \
-        || fail "cannot append course-specific README note to '${RESOLVED_ENV_ROOT}/README.md'"
 fi
 
 # --- Step 11: report what was built -----------------------------------------

@@ -45,6 +45,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 │   ├── jupyter-codeserver/     (not built) the same two servers, without the agents
 │   └── rstudio/                (not built) an unrelated family would sit alongside
 ├── envs/<course>/              initial course environment specification
+├── docs/                       how to provision and maintain those environments
 ├── ood/
 │   ├── lib/launch-common.sh    canonical shared launch logic — EDIT HERE
 │   ├── jupyterlab-ai/          parent app (form.yml, manifest.yml, submit.yml.erb, …)

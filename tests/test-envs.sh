@@ -42,7 +42,7 @@ done
 it "cs1090a keeps the otter-grader upper bound the course asked us not to cross"
 assert_contains "$(cat envs/cs1090a/environment.yml)" "otter-grader>=7,<8"
 
-it "a staff-facing README template exists to be written beside the prefixes"
-assert_success test -f envs/README-template.md
+it "maintenance documentation exists for whoever provisions these"
+assert_success test -f docs/course-environments.md
 
 finish
