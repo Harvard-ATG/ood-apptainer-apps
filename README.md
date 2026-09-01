@@ -65,6 +65,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 
 | Script | Purpose |
 |---|---|
+| `submit-build-image.sh` | Submits the compute-node job that builds one image |
 | `build-image.sh` | Builds one immutable image artifact with checksum and metadata sidecars |
 | `submit-provision-course-env.sh` | Submits the compute-node job that provisions one course's Python environment |
 | `provision-course-env.sh` | The image-side script that job runs |
@@ -85,9 +86,9 @@ The launcher is split in two halves: the host-side half validates paths and deci
 | `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `submit-provision-course-env.sh` |
 | `OOD_APPTAINER_TARGET_ARCH` | `x86_64` | `build-image.sh` |
 | `OOD_APPTAINER_OUTPUT_DIR` | `<repo>/build` | `build-image.sh` |
-| `OOD_APPTAINER_BUILD_SCRATCH` | `/scratch/<user>/apptainer-build` | `build-image.sh` |
+| `OOD_APPTAINER_BUILD_SCRATCH` | `/scratch/<user>/apptainer-build` | `build-image.sh`, `submit-build-image.sh` |
 
-The test suite sets all but `OOD_APPTAINER_OUTPUT_DIR` and `OOD_APPTAINER_BUILD_SCRATCH`, pointing them at fixtures; that is what they exist for. `build-image.sh` names `OOD_APPTAINER_TARGET_ARCH` and `OOD_APPTAINER_BUILD_SCRATCH` in its own failure messages, at the moment either one is needed.
+The test suite sets all but `OOD_APPTAINER_OUTPUT_DIR`, pointing them at fixtures; that is what they exist for. `build-image.sh` names `OOD_APPTAINER_TARGET_ARCH` and `OOD_APPTAINER_BUILD_SCRATCH` in its own failure messages, at the moment either one is needed.
 
 ## Before you deploy
 
