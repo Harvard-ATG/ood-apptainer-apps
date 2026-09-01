@@ -92,7 +92,7 @@ done
 [ -n "$COURSE" ] && [ -n "$CANVAS_ID" ] && [ -n "$IMAGE_FILE" ] || usage
 
 # --- Step 2: the course specification directory must exist -----------------
-SPEC_DIR="${REPO_ROOT}/images/jupyter-codeserver-ai/envs/${COURSE}"
+SPEC_DIR="${REPO_ROOT}/envs/${COURSE}"
 [ -d "$SPEC_DIR" ] \
     || fail "no course specification directory for '${COURSE}' at '${SPEC_DIR}'"
 

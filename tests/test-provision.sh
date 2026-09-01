@@ -412,13 +412,13 @@ assert_success test -f "$ENVROOT/README.md"
 
 # --- The repo-level design ruling: move CS1090A's note out of the template --
 it "README-template.md no longer carries the course-specific removal markers"
-assert_failure grep -q "BEGIN COURSE-SPECIFIC" images/jupyter-codeserver-ai/envs/README-template.md
+assert_failure grep -q "BEGIN COURSE-SPECIFIC" envs/README-template.md
 
 it "cs1090a's course-specific note now lives in its own file beside its spec"
-assert_success test -f images/jupyter-codeserver-ai/envs/cs1090a/README-note.md
+assert_success test -f envs/cs1090a/README-note.md
 
 it "the moved note still pins the otter-grader constraint"
-assert_contains "$(cat images/jupyter-codeserver-ai/envs/cs1090a/README-note.md)" "otter-grader"
+assert_contains "$(cat envs/cs1090a/README-note.md)" "otter-grader"
 
 # ---------------------------------------------------------------------------
 # scripts/build-course-env.sh: the admin wrapper that validates, submits ONE
@@ -443,16 +443,16 @@ assert_success test -x scripts/build-course-env.sh
 BCE_REPO="$ROOT/bce-repo"
 mkdir -p "$BCE_REPO/scripts" "$BCE_REPO/ood/lib" \
          "$BCE_REPO/ood/jupyterlab-ai/local" "$BCE_REPO/ood/codeserver-ai/local" \
-         "$BCE_REPO/images/jupyter-codeserver-ai/envs/am115" "$BCE_REPO/tests"
+         "$BCE_REPO/envs/am115" "$BCE_REPO/tests"
 cp scripts/build-course-env.sh "$BCE_REPO/scripts/build-course-env.sh"
 cp scripts/provision-course-env.sh "$BCE_REPO/scripts/provision-course-env.sh"
 chmod 755 "$BCE_REPO/scripts/build-course-env.sh" "$BCE_REPO/scripts/provision-course-env.sh"
 cp ood/lib/launch-common.sh "$BCE_REPO/ood/lib/launch-common.sh"
 cp tests/render.rb "$BCE_REPO/tests/render.rb"
-cp images/jupyter-codeserver-ai/envs/am115/manager \
-   images/jupyter-codeserver-ai/envs/am115/python-version \
-   images/jupyter-codeserver-ai/envs/am115/environment.yml \
-   "$BCE_REPO/images/jupyter-codeserver-ai/envs/am115/"
+cp envs/am115/manager \
+   envs/am115/python-version \
+   envs/am115/environment.yml \
+   "$BCE_REPO/envs/am115/"
 
 # am115's REAL sub-apps, rewritten onto a writable fake course-shared root.
 # Everything else about them -- title, access control, imagefile -- is
@@ -687,11 +687,11 @@ it "it fails, naming the disagreement, when a sub-app's declared path disagrees 
 # update-the-folder mistake render-forms.sh's own check #6 guards against at
 # the OOD-form layer. This proves build-course-env.sh guards it too, at the
 # provisioning layer, independently.
-mkdir -p "$BCE_REPO/images/jupyter-codeserver-ai/envs/mismatched"
-cp images/jupyter-codeserver-ai/envs/am115/manager \
-   images/jupyter-codeserver-ai/envs/am115/python-version \
-   images/jupyter-codeserver-ai/envs/am115/environment.yml \
-   "$BCE_REPO/images/jupyter-codeserver-ai/envs/mismatched/"
+mkdir -p "$BCE_REPO/envs/mismatched"
+cp envs/am115/manager \
+   envs/am115/python-version \
+   envs/am115/environment.yml \
+   "$BCE_REPO/envs/mismatched/"
 # Swaps BOTH halves of the folder ID uniformly (172566outer/172566 ->
 # 172567outer/172567), so the sub-app still declares an internally
 # consistent, well-formed course folder -- just for the WRONG Canvas ID. The

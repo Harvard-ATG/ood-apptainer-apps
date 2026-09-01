@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 . tests/lib/assert.sh
 
 for course in am115 cs1090a; do
-    D="images/jupyter-codeserver-ai/envs/$course"
+    D="envs/$course"
 
     it "$course: declares a manager"
     assert_success test -f "$D/manager"
@@ -40,9 +40,9 @@ for course in am115 cs1090a; do
 done
 
 it "cs1090a keeps the otter-grader upper bound the course asked us not to cross"
-assert_contains "$(cat images/jupyter-codeserver-ai/envs/cs1090a/environment.yml)" "otter-grader>=7,<8"
+assert_contains "$(cat envs/cs1090a/environment.yml)" "otter-grader>=7,<8"
 
 it "a staff-facing README template exists to be written beside the prefixes"
-assert_success test -f images/jupyter-codeserver-ai/envs/README-template.md
+assert_success test -f envs/README-template.md
 
 finish

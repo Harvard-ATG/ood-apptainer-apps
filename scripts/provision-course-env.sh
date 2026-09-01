@@ -261,7 +261,7 @@ else
     fi
 fi
 
-TEMPLATE="${REPO_ROOT}/images/jupyter-codeserver-ai/envs/README-template.md"
+TEMPLATE="${REPO_ROOT}/envs/README-template.md"
 [ -f "$TEMPLATE" ] || fail "README template missing at '${TEMPLATE}'"
 
 # The spec directory's own basename is the only course identifier this script

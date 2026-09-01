@@ -123,7 +123,7 @@ If an update fails or leaves the environment broken:
 <!--
 A course with constraints specific to it (not covered by the generic body
 above) keeps them in its own optional `README-note.md` file beside its spec
-directory (e.g. `images/jupyter-codeserver-ai/envs/cs1090a/README-note.md`),
+directory (e.g. `envs/cs1090a/README-note.md`),
 not in this shared template. provision-course-env.sh appends that file
 verbatim to the rendered README when it exists, so a course with no note gets
 no extra section, and no course's render has to know how to skip any other
