@@ -176,11 +176,18 @@ lc_validate_under() {
     esac
 }
 
-# lc_classify_course_env <environment_root> <course_folder>
+# lc_classify_course_env <environment_root> <course_folder> <interpreter>
 #
 # Sets LC_COURSE_ENV to the resolved <environment_root>/default and
 # LC_COURSE_ENV_STATUS to "ok" or "missing". Returns nonzero ONLY when the
-# prefix escapes the course folder.
+# prefix escapes the course folder, or when <interpreter> is not given.
+#
+# <interpreter> is the path, relative to the prefix, whose presence means the
+# environment is usable -- bin/python for a Python course, bin/R for an R one.
+# It is an argument and not a constant because which interpreter counts is a
+# fact about the app being launched, and this library is shared by all of them.
+# It is also required rather than defaulted: a default would leave one app's
+# assumption sitting in shared code, which is what the argument removes.
 #
 # The asymmetry is deliberate. An escaping path is a containment failure and
 # must stop the launch. An absent prefix is an ordinary operational state --
@@ -198,19 +205,24 @@ lc_validate_under() {
 # isolation, so shellcheck cannot see the callers (script.sh.erb, and this
 # file's own test suite) that read them after this function returns.
 lc_classify_course_env() {
-    local env_root="$1" course_folder="$2" prefix
+    local env_root="$1" course_folder="$2" interpreter="${3:-}" prefix
+
+    if [ -z "$interpreter" ]; then
+        lc_log "ERROR: lc_classify_course_env needs the interpreter path relative to the prefix (e.g. bin/python)"
+        return 1
+    fi
 
     prefix=$(lc_validate_under "${env_root}/default" "${course_folder}") || return 1
     LC_COURSE_ENV="$prefix"
 
-    if [ -x "${prefix}/bin/python" ]; then
+    if [ -x "${prefix}/${interpreter}" ]; then
         LC_COURSE_ENV_STATUS="ok"
         lc_log "course environment=${prefix}"
         return 0
     fi
 
     LC_COURSE_ENV_STATUS="missing"
-    lc_log "WARNING: no executable interpreter at ${prefix}/bin/python"
+    lc_log "WARNING: no executable interpreter at ${prefix}/${interpreter}"
     lc_log "WARNING: the course environment is not available; the session will START but will"
     lc_log "WARNING: offer only the image kernel, which has no course packages."
     return 0

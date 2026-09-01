@@ -32,7 +32,7 @@ ENVIRONMENT_ROOT=$(lc_validate_under "${ENVIRONMENT_ROOT_RAW}" "${COURSE_FOLDER}
 
 # A missing course environment degrades the session; only an escaping path is
 # fatal. See lc_classify_course_env.
-lc_classify_course_env "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}" || exit 1
+lc_classify_course_env "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}" bin/python || exit 1
 COURSE_ENV="${LC_COURSE_ENV}"
 COURSE_ENV_STATUS="${LC_COURSE_ENV_STATUS}"
 
