@@ -1,11 +1,11 @@
 # Course Python environments
 
-A course's Python prefix at `<environment_root>/default` is provisioned from
-the spec in `envs/<course>/` and maintained on request from the course.
-Provisioning creates the prefix and records the manager and source spec beside
-it.
+A course's kernel environment lives at `<environment_root>/default`, on the
+shared filesystem outside this repo. This repo holds the spec it is first built
+from. After that, teaching staff maintain it on request and it is expected to
+drift from the spec.
 
-## The spec
+## 1. Write the spec
 
 `envs/<course>/` holds:
 
@@ -16,22 +16,61 @@ it.
 | `environment.yml` | micromamba courses: the dependency list |
 | `pyproject.toml`, `uv.lock` | uv courses: the project definition |
 
-It records the initial state; the live prefix is expected to drift from it.
-Kernel-side packages only — JupyterLab and its extensions live in the image.
+Include the files for one manager only. A spec directory carrying both
+`environment.yml` and `pyproject.toml` is rejected.
 
-When a requested package is deliberately left out, or a version ceiling is
-deliberately set, say why in the dependency file. That comment is the answer
-when the course asks again next term.
+Kernel-side packages only. JupyterLab and its extensions live in the image.
 
-`scripts/submit-provision-course-env.sh` submits the job that runs
-`scripts/provision-course-env.sh` on a compute node.
+When you leave a requested package out, or set a version ceiling, say why in the
+dependency file. That comment is the answer when the course asks again next
+term.
 
-## Maintaining a prefix
+## 2. Provision
 
-Use only the manager that created it: mixing tools in one prefix is not
-recoverable, and changing manager means recreating the prefix rather than
-converting it. `$COURSE_ENV` is `<environment_root>/default` or
-`<environment_root>/staging`, never `<environment_root>` itself.
+```bash
+scripts/submit-provision-course-env.sh \
+    --course cs1090a \
+    --canvas-id 12345 \
+    --image jupyter-codeserver-ai/jupyterlab-20260828T030141Z-4e73009.sif
+```
+
+This runs the provisioning script inside the image on a compute node and waits
+for it, so the command's exit status is the job's. It creates
+`<environment_root>/default` and prints the prefix, the manager and the Python
+version it built.
+
+Options:
+
+| Flag | Meaning |
+|---|---|
+| `--course NAME` | required; must match a directory under `envs/` |
+| `--canvas-id ID` | required; selects the course folder |
+| `--image <family>/<artifact>` | required; a deployed image |
+| `--rebuild` | delete and recreate an existing `default` |
+| `--dry-run` | print the job script and stop |
+| `--environment-root PATH` | override where the prefix goes |
+
+Before submitting, it prints the course folder and environment root it derived
+from `--canvas-id`, then checks that both apps' sub-apps for the course agree
+with them. That check needs `jq`. It is skipped with a warning when `ruby` is
+missing or when you pass `--environment-root`.
+
+The job log is at `$OOD_APPTAINER_SCRATCH_ROOT/provisioning/<course>/provision.log`.
+
+Provisioning validates the prefix before recording anything: the interpreter
+runs and reports the expected version, `ipykernel` imports, one package from the
+spec imports, and every file is readable and traversable by others. Only then
+does it write `manager` and a copy of the spec beside the prefix. If those
+records are missing, the run failed.
+
+## 3. Maintain a prefix
+
+Use only the manager that created it. Mixing tools in one prefix cannot be
+undone, and changing manager means recreating the prefix rather than converting
+it.
+
+Set `$COURSE_ENV` to the prefix itself, `<environment_root>/default` or
+`<environment_root>/staging`, never `<environment_root>`.
 
 ```bash
 # micromamba -- snapshot first, outside the prefix
@@ -55,10 +94,50 @@ uv lock --upgrade-package <package> && uv sync
 uv lock --upgrade && uv sync
 ```
 
-`staging` is optional: test changes there, then switch the `default` symlink
-atomically. The apps look for those two names only, and never build, compare
-or promote either.
+Everything in the prefix must stay readable and traversable by others, or
+kernels stop starting for the whole course. After installing under a restrictive
+umask, check with the same test provisioning uses:
 
-If an update breaks a prefix, recreate it from the snapshot or from
-`envs/<course>/`, then re-test Python startup and the course's representative
+```bash
+find "$COURSE_ENV" ! -perm -o+rX
+```
+
+## 4. Test in staging first (optional)
+
+The apps look for `default` and `staging` under the environment root, and
+nothing else. They never build, compare or promote either.
+
+Provisioning only ever creates `default`, as a real directory. To switch between
+prefixes, replace it with a symlink yourself. The launcher resolves symlinks, as
+long as the target stays inside the course folder:
+
+```bash
+mv  <environment_root>/default <environment_root>/v1
+ln -sfn v1 <environment_root>/default
+
+# after testing <environment_root>/v2:
+ln -sfn v2 <environment_root>/default
+```
+
+## Troubleshooting
+
+**"environment prefix already exists".** Pass `--rebuild` to delete and recreate
+it. Without that flag, provisioning refuses rather than overwriting.
+
+**"ambiguous ownership".** The spec directory carries files for both managers.
+Keep `environment.yml` or `pyproject.toml`, not both.
+
+**"cannot import ipykernel", or a package from the spec fails to import.** The
+prefix built but cannot run a kernel. Fix the spec and re-run with `--rebuild`.
+
+**"has entries not readable/traversable by others".** Provisioning reports this
+instead of fixing it, because it does not change the course folder's permission
+model. Correct the modes, then re-run.
+
+**A sub-app disagrees with the derived paths.** The sub-app declares a different
+course folder or environment root than `--canvas-id` produced. Fix the sub-app,
+or pass `--environment-root` if the difference is deliberate.
+
+**An update broke a live prefix.** Recreate it from the snapshot or from
+`envs/<course>/`, then test Python startup and the course's representative
 imports before students use it again.
