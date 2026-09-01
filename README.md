@@ -71,6 +71,23 @@ The launcher is split in two halves: the host-side half validates paths and deci
 | `sync-launch-lib.sh` | Vendors the shared launch library into each app |
 | `smoke-test-checklist.md` | Manual QA checklist, run once per course per term |
 
+## Environment overrides
+
+**Nothing in a normal deployment sets any of these.** Every one is an optional override with an in-repo default, listed here so a deploy can be checked against it rather than against the source. They were renamed from `OOD_AI_*` with no compatibility alias, so a stale setter is not an error — its value is silently ignored in favour of the default below. That is the failure this table exists to make findable.
+
+| Variable | Default | Read by |
+|---|---|---|
+| `OOD_APPTAINER_IMAGE_ROOT_FAST` | `/scratch/apptainerImages` | launcher |
+| `OOD_APPTAINER_IMAGE_ROOT_CANONICAL` | `/shared/apptainerImages` | launcher |
+| `OOD_APPTAINER_BIN` | discovered via the Spack `apptainer` environment | launcher |
+| `OOD_APPTAINER_SCRATCH_ROOT` | `/scratch/<user>/ood/apptainer` | launcher, `build-course-env.sh` |
+| `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `build-course-env.sh` |
+| `OOD_APPTAINER_TARGET_ARCH` | `x86_64` | `build-image.sh` |
+| `OOD_APPTAINER_OUTPUT_DIR` | `<repo>/build` | `build-image.sh` |
+| `OOD_APPTAINER_BUILD_SCRATCH` | `/scratch/<user>/apptainer-build` | `build-image.sh` |
+
+The test suite sets all but `OOD_APPTAINER_OUTPUT_DIR` and `OOD_APPTAINER_BUILD_SCRATCH`, pointing them at fixtures; that is what they exist for. `build-image.sh` names `OOD_APPTAINER_TARGET_ARCH` and `OOD_APPTAINER_BUILD_SCRATCH` in its own failure messages, at the moment either one is needed.
+
 ## Before you deploy
 
 Run the release gate (needs `ruby` and `jq`):
