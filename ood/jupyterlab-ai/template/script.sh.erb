@@ -53,8 +53,10 @@ COURSE_ENV_STAGING=$(lc_resolve_staging "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}"
 # roots persist across jobs and are subject to cluster purge policy.
 # ---------------------------------------------------------------------------
 # Overridable so the test suite can point the state layout at a fixture
-# instead of the real /scratch. The default is the spec's State layout value.
-SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
+# instead of the real /scratch. Every app shares this root -- job state is keyed
+# by SLURM_JOB_ID and the caches are meant to be shared -- so it is named for
+# the launch mechanism, not for any one image family.
+SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/apptainer}"
 JOB_STATE="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/state"
 JOB_TMP="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/tmp"
 SSH_MASK="${JOB_STATE}/ssh-mask"

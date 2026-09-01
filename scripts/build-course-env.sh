@@ -159,7 +159,7 @@ IMAGE_PATH=$(lc_select_image "$IMAGE_FILE") \
 # --- Step 6: generate the batch script --------------------------------------
 # Provisioning scratch: its own subtree of the same scratch root the launch
 # path uses, so nothing here competes with a live session's cache.
-SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
+SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/apptainer}"
 PROVISION_SCRATCH="${SCRATCH_ROOT}/provisioning/${COURSE}"
 SLURM_LOG="${PROVISION_SCRATCH}/build.log"
 

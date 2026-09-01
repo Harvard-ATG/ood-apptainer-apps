@@ -15,7 +15,7 @@ fixture_create() {
     export FAKE_HOME="$FIXTURE_ROOT/shared/home/tester"
     export FAKE_COURSE_ROOT="$FIXTURE_ROOT/shared/courseSharedFolders/170681outer/170681"
     export FAKE_ENV_ROOT="$FAKE_COURSE_ROOT/envs"
-    export FAKE_SCRATCH="$FIXTURE_ROOT/scratch/tester/ood/jupyter-codeserver-ai"
+    export FAKE_SCRATCH="$FIXTURE_ROOT/scratch/tester/ood/apptainer"
     export FAKE_JOB_STATE="$FAKE_SCRATCH/jobs/42/state"
     export FAKE_JOB_TMP="$FAKE_SCRATCH/jobs/42/tmp"
     export FAKE_SSH_MASK="$FAKE_JOB_STATE/ssh-mask"
