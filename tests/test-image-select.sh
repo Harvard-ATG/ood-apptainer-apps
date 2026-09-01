@@ -11,8 +11,8 @@ cd "$(dirname "$0")" || exit 1
 fixture_create
 trap fixture_destroy EXIT
 
-export OOD_AI_IMAGE_ROOT_FAST="$FAKE_IMAGE_ROOT_FAST"
-export OOD_AI_IMAGE_ROOT_CANONICAL="$FAKE_IMAGE_ROOT_CANONICAL"
+export OOD_APPTAINER_IMAGE_ROOT_FAST="$FAKE_IMAGE_ROOT_FAST"
+export OOD_APPTAINER_IMAGE_ROOT_CANONICAL="$FAKE_IMAGE_ROOT_CANONICAL"
 REL="jupyter-codeserver-ai/jupyterlab-test.sif"
 
 mkdir -p "$FAKE_IMAGE_ROOT_CANONICAL/jupyter-codeserver-ai" \

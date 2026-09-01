@@ -54,7 +54,7 @@ COURSE_ENV_STAGING=$(lc_resolve_staging "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}"
 # ---------------------------------------------------------------------------
 # Overridable so the test suite can point the state layout at a fixture
 # instead of the real /scratch. The default is the spec's State layout value.
-SCRATCH_ROOT="${OOD_AI_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
+SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
 JOB_STATE="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/state"
 JOB_TMP="${SCRATCH_ROOT}/jobs/${SLURM_JOB_ID}/tmp"
 SSH_MASK="${JOB_STATE}/ssh-mask"

@@ -23,7 +23,7 @@ IMAGES_ROOT="${REPO_ROOT}/images"
 # The architecture the cluster runs, in `uname -m` form -- the vocabulary ops
 # staff and the rest of this repo use. An artifact that does not match is not
 # publishable, however useful the build was for validating the definition.
-TARGET_ARCH="${OOD_AI_TARGET_ARCH:-x86_64}"
+TARGET_ARCH="${OOD_APPTAINER_TARGET_ARCH:-x86_64}"
 
 # Apptainer's own build-arch label is written in Go/Docker arch names
 # (amd64, arm64), not `uname -m` names (x86_64, aarch64). Normalize both sides
@@ -71,7 +71,7 @@ fi
 
 COMMIT=$(git -C "$REPO_ROOT" rev-parse --short HEAD)
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-OUT_DIR="${OOD_AI_OUTPUT_DIR:-${REPO_ROOT}/build}"
+OUT_DIR="${OOD_APPTAINER_OUTPUT_DIR:-${REPO_ROOT}/build}"
 SIF="${OUT_DIR}/${APP}-${STAMP}-${COMMIT}.sif"
 
 mkdir -p "$OUT_DIR"
@@ -82,14 +82,14 @@ fi
 
 # Apptainer's build scratch defaults to /tmp, which on a compute node is a small
 # nodev tmpfs. Point it at real disk and fail early if that is not writable.
-BUILD_SCRATCH="${OOD_AI_BUILD_SCRATCH:-/scratch/$(id -nu)/apptainer-build}"
+BUILD_SCRATCH="${OOD_APPTAINER_BUILD_SCRATCH:-/scratch/$(id -nu)/apptainer-build}"
 # mkdir's own stderr is deliberately NOT discarded. It carries the one thing
 # worth having here -- whether the path is read-only, absent, over quota or
 # permission-denied -- and on a cluster node that is expensive to work out any
 # other way. The messages below add the remedy, they do not replace it.
 if ! mkdir -p "${BUILD_SCRATCH}/tmp" "${BUILD_SCRATCH}/cache"; then
     log "ERROR: cannot create build scratch at ${BUILD_SCRATCH}"
-    log "  set OOD_AI_BUILD_SCRATCH to a writable path on real disk"
+    log "  set OOD_APPTAINER_BUILD_SCRATCH to a writable path on real disk"
     exit 1
 fi
 export APPTAINER_TMPDIR="${BUILD_SCRATCH}/tmp"
@@ -100,7 +100,7 @@ log "build scratch ${BUILD_SCRATCH}"
 # authoritative check is on the artifact below -- a cross-build would sail past
 # a host check -- but that one runs after a multi-gigabyte, ~20-minute build
 # and then deletes what it rejects. On an arm build host that silently destroys
-# every artifact unless OOD_AI_TARGET_ARCH is set, with no hint until the end.
+# every artifact unless OOD_APPTAINER_TARGET_ARCH is set, with no hint until the end.
 #
 # A warning, not a refusal: building on a different architecture is a
 # legitimate way to validate a definition. Compared through normalize_arch, so
@@ -109,7 +109,7 @@ HOST_ARCH=$(uname -m)
 if [ "$(normalize_arch "$HOST_ARCH")" != "$(normalize_arch "$TARGET_ARCH")" ]; then
     log "WARNING: build host is ${HOST_ARCH} but the target is ${TARGET_ARCH}"
     log "  the artifact will be REFUSED and deleted once the build completes"
-    log "  to keep it, set OOD_AI_TARGET_ARCH=${HOST_ARCH}; otherwise build on a ${TARGET_ARCH} host"
+    log "  to keep it, set OOD_APPTAINER_TARGET_ARCH=${HOST_ARCH}; otherwise build on a ${TARGET_ARCH} host"
 fi
 
 log "building ${TARGET} -> ${SIF}"

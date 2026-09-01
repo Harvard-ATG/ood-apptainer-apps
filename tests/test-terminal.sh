@@ -21,7 +21,7 @@ fixture_create
 trap fixture_destroy EXIT
 IMAGE=$(fixture_image)
 export HOME="$FAKE_HOME"
-APB="${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}"
+APB="${OOD_APPTAINER_BIN:-$(command -v apptainer)}"
 
 STAGED="$FAKE_HOME/ondemand/data/sys/ood-terminal/output/term-uuid"
 mkdir -p "$STAGED"

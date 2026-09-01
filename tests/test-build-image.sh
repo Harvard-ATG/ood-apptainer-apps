@@ -53,14 +53,14 @@ assert_not_contains "$body" "2>/dev/null"
 it "it warns about an architecture mismatch BEFORE spending the build"
 # The authoritative check is on the artifact, after the build -- but it then
 # deletes what it rejects. Unwarned, every artifact on an arm build host is
-# destroyed after ~20 minutes unless OOD_AI_TARGET_ARCH is set.
+# destroyed after ~20 minutes unless OOD_APPTAINER_TARGET_ARCH is set.
 assert_contains "$body" "WARNING: build host is"
 
 it "the early warning compares through normalize_arch, not a hardcoded arch"
 assert_contains "$body" 'normalize_arch "$HOST_ARCH"'
 
 it "the early warning names the override that keeps the artifact"
-assert_contains "$body" "OOD_AI_TARGET_ARCH="
+assert_contains "$body" "OOD_APPTAINER_TARGET_ARCH="
 
 it "the early warning precedes the build, or it saves nothing"
 warn_pos=$(printf '%s' "$body" | grep -n "WARNING: build host is" | head -1 | cut -d: -f1)

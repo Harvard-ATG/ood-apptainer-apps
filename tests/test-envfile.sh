@@ -39,12 +39,12 @@ it "a value containing a space survives into the container"
 IMAGE=$(fixture_image)
 lc_write_env_file "$ENVF" "COURSE_LABEL=APMTH 115" "PATH=/usr/local/bin:/usr/bin:/bin"
 lc_build_binds "$FAKE_COURSE_ROOT" "$FAKE_SCRATCH" "$FAKE_JOB_STATE" "$FAKE_JOB_TMP" "$FAKE_SSH_MASK"
-HOME="$FAKE_HOME" assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}" \
+HOME="$FAKE_HOME" assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_APPTAINER_BIN:-$(command -v apptainer)}" \
     "$IMAGE" "$ENVF" sh -c 'printf %s "$COURSE_LABEL"' 2>/dev/null)" "APMTH 115"
 
 it "a value containing a double quote survives into the container"
 lc_write_env_file "$ENVF" 'TITLE=say "hi"' "PATH=/usr/local/bin:/usr/bin:/bin"
-assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}" \
+assert_eq "$(HOME="$FAKE_HOME" lc_run "${OOD_APPTAINER_BIN:-$(command -v apptainer)}" \
     "$IMAGE" "$ENVF" sh -c 'printf %s "$TITLE"' 2>/dev/null)" 'say "hi"'
 
 it "rejects a value containing a newline"
@@ -55,8 +55,8 @@ lc_write_env_file "$ENVF" "ONLY=one"
 assert_eq "$(wc -l < "$ENVF" | tr -d ' ')" "1"
 
 it "resolves apptainer from the test override"
-OOD_AI_APPTAINER_BIN=$(command -v apptainer) \
-  assert_eq "$(OOD_AI_APPTAINER_BIN=$(command -v apptainer) lc_apptainer_bin)" "$(command -v apptainer)"
+OOD_APPTAINER_BIN=$(command -v apptainer) \
+  assert_eq "$(OOD_APPTAINER_BIN=$(command -v apptainer) lc_apptainer_bin)" "$(command -v apptainer)"
 
 it "sterile prefix starts with env -i"
 lc_sterile_prefix

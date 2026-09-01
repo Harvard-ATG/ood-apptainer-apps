@@ -26,15 +26,15 @@ img=$(fixture_image)
 assert_success test -e "$img"
 
 it "stub image runs and reports its marker"
-out=$("${OOD_AI_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'cat /opt/marker' 2>/dev/null)
+out=$("${OOD_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'cat /opt/marker' 2>/dev/null)
 assert_eq "$out" "stub"
 
 it "stub image has a jupyter shim"
-out=$("${OOD_AI_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'command -v jupyter' 2>/dev/null)
+out=$("${OOD_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'command -v jupyter' 2>/dev/null)
 assert_eq "$out" "/usr/local/bin/jupyter"
 
 it "stub image has a code-server shim"
-out=$("${OOD_AI_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'command -v code-server' 2>/dev/null)
+out=$("${OOD_APPTAINER_BIN:-apptainer}" exec "$img" /bin/sh -c 'command -v code-server' 2>/dev/null)
 assert_eq "$out" "/usr/local/bin/code-server"
 
 finish

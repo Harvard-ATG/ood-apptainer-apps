@@ -16,11 +16,11 @@ IMAGE=$(fixture_image)
 export HOME="$FAKE_HOME"
 export USER=tester
 export SLURM_JOB_ID=42
-export OOD_AI_APPTAINER_BIN="${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}"
-export OOD_AI_IMAGE_ROOT_FAST="$FAKE_IMAGE_ROOT_FAST"
-export OOD_AI_IMAGE_ROOT_CANONICAL="$FAKE_IMAGE_ROOT_CANONICAL"
+export OOD_APPTAINER_BIN="${OOD_APPTAINER_BIN:-$(command -v apptainer)}"
+export OOD_APPTAINER_IMAGE_ROOT_FAST="$FAKE_IMAGE_ROOT_FAST"
+export OOD_APPTAINER_IMAGE_ROOT_CANONICAL="$FAKE_IMAGE_ROOT_CANONICAL"
 # Point the state layout at the fixture rather than the real /scratch.
-export OOD_AI_SCRATCH_ROOT="$FAKE_SCRATCH"
+export OOD_APPTAINER_SCRATCH_ROOT="$FAKE_SCRATCH"
 
 # A sub-app fixture pointing at the fixture's own paths.
 SUB="$FIXTURE_ROOT/e2e-subapp.yml.erb"

@@ -100,7 +100,7 @@ SPEC_DIR="${REPO_ROOT}/images/jupyter-codeserver-ai/envs/${COURSE}"
 # convention the sub-apps use. Overridable ONLY for the root prefix, the same
 # way the launch path's image roots and scratch root are overridable, so the
 # test suite never has to touch a real /shared mount.
-COURSE_SHARED_ROOT="${OOD_AI_COURSE_SHARED_ROOT:-/shared/courseSharedFolders}"
+COURSE_SHARED_ROOT="${OOD_APPTAINER_COURSE_SHARED_ROOT:-/shared/courseSharedFolders}"
 COURSE_FOLDER="${COURSE_SHARED_ROOT}/${CANVAS_ID}outer/${CANVAS_ID}"
 if [ -n "$ENV_ROOT_OVERRIDE" ]; then
     ENV_ROOT="$ENV_ROOT_OVERRIDE"
@@ -159,7 +159,7 @@ IMAGE_PATH=$(lc_select_image "$IMAGE_FILE") \
 # --- Step 6: generate the batch script --------------------------------------
 # Provisioning scratch: its own subtree of the same scratch root the launch
 # path uses, so nothing here competes with a live session's cache.
-SCRATCH_ROOT="${OOD_AI_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
+SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/jupyter-codeserver-ai}"
 PROVISION_SCRATCH="${SCRATCH_ROOT}/provisioning/${COURSE}"
 SLURM_LOG="${PROVISION_SCRATCH}/build.log"
 

@@ -12,7 +12,7 @@ fixture_create
 trap fixture_destroy EXIT
 IMAGE=$(fixture_image)
 export HOME="$FAKE_HOME"
-APB="${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}"
+APB="${OOD_APPTAINER_BIN:-$(command -v apptainer)}"
 
 # Stage the launchers where the container will find them, mirroring how OOD
 # stages template/ into the session directory beneath the real home.

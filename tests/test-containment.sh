@@ -17,7 +17,7 @@ fixture_create
 trap fixture_destroy EXIT
 IMAGE=$(fixture_image)
 export HOME="$FAKE_HOME"
-export OOD_AI_APPTAINER_BIN="${OOD_AI_APPTAINER_BIN:-$(command -v apptainer)}"
+export OOD_APPTAINER_BIN="${OOD_APPTAINER_BIN:-$(command -v apptainer)}"
 
 ENVF="$FIXTURE_ROOT/env.list"
 lc_write_env_file "$ENVF" \

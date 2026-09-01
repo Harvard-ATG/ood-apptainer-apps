@@ -27,5 +27,5 @@ image_exec() {
     local name="$1"; shift
     local img
     img=$(image_path "$name") || return 1
-    "${OOD_AI_APPTAINER_BIN:-apptainer}" exec "$img" "$@"
+    "${OOD_APPTAINER_BIN:-apptainer}" exec "$img" "$@"
 }

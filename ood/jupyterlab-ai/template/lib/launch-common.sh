@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Shared host-side launch logic for the -ai OOD apps.
+# Shared host-side launch logic for the Apptainer OOD apps.
 #
 # Canonical source: ood/lib/launch-common.sh
 # Vendored into each app's template/lib/ by scripts/sync-launch-lib.sh, because
@@ -8,8 +8,8 @@
 #
 # Every containment decision lives here so the two apps cannot diverge.
 
-: "${OOD_AI_IMAGE_ROOT_FAST:=/scratch/apptainerImages}"
-: "${OOD_AI_IMAGE_ROOT_CANONICAL:=/shared/apptainerImages}"
+: "${OOD_APPTAINER_IMAGE_ROOT_FAST:=/scratch/apptainerImages}"
+: "${OOD_APPTAINER_IMAGE_ROOT_CANONICAL:=/shared/apptainerImages}"
 
 lc_log() {
     # stderr, not stdout. lc_select_image, lc_validate_under and lc_apptainer_bin
@@ -33,8 +33,8 @@ lc_file_size() {
 # is highest. Populating the fast root is an administrative deploy step.
 lc_select_image() {
     local rel="$1"
-    local fast="${OOD_AI_IMAGE_ROOT_FAST}/${rel}"
-    local canonical="${OOD_AI_IMAGE_ROOT_CANONICAL}/${rel}"
+    local fast="${OOD_APPTAINER_IMAGE_ROOT_FAST}/${rel}"
+    local canonical="${OOD_APPTAINER_IMAGE_ROOT_CANONICAL}/${rel}"
 
     if [ ! -e "$canonical" ]; then
         lc_log "ERROR: image not found at authoritative path: ${canonical}"
@@ -112,8 +112,8 @@ lc_write_env_file() {
 # is sourced only to locate it; the resolved path is then invoked directly, so
 # nothing downstream depends on an activated Spack environment.
 lc_apptainer_bin() {
-    if [ -n "${OOD_AI_APPTAINER_BIN:-}" ]; then
-        printf '%s\n' "$OOD_AI_APPTAINER_BIN"
+    if [ -n "${OOD_APPTAINER_BIN:-}" ]; then
+        printf '%s\n' "$OOD_APPTAINER_BIN"
         return 0
     fi
 
