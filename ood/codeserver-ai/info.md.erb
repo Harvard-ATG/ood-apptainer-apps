@@ -1,14 +1,10 @@
-Code Server is starting in an Apptainer container on a compute node. Sessions
-usually start within a minute, but a busy queue can delay one for several
-minutes before this card turns green.
+Visual Studio Code in the browser, set up with your course's Python packages.
+Files open from your home directory.
 
-When the course environment is available, the integrated terminal has it on
-`PATH` and course packages need no extra setup. If it is missing or not
-working, the session still starts without it and the session log says so —
-course packages will not import until teaching staff repair it. Workspace
-trust is disabled so the Claude Code extension loads automatically. Files
-under `/scratch` are fast working space and are purged on a schedule; keep
-anything you need in your home directory.
+- Your course's packages are available in the integrated terminal. If they are
+  missing, tell your teaching staff — the session still works without them.
+- Claude Code and Codex are preinstalled. Sign in with your own account in a
+  terminal.
+- Extensions load without prompting for workspace trust.
 
-Claude Code and Codex are preinstalled. Sign in with your own account in a
-terminal — no shared credentials are built into the image.
+Sessions usually start within a minute; a busy queue can take several.
