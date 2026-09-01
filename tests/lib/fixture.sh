@@ -129,6 +129,5 @@ fixture_image() {
         cp -a "$target" "$FAKE_IMAGE_ROOT_CANONICAL/stub"
     fi
 
-    export OOD_APPTAINER_TEST_IMAGE="$target"
     printf '%s\n' "$target"
 }
