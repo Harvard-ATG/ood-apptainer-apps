@@ -20,6 +20,16 @@ log() {
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 IMAGES_ROOT="${REPO_ROOT}/images"
 
+# The same resolution the launcher and the provisioning job use, so a build
+# needs no Spack incantation from whoever runs it and honours OOD_APPTAINER_BIN
+# like every other entry point. The command substitution matters: Spack is
+# activated only inside it, so an activated environment never reaches
+# `apptainer build --fakeroot`, which is sensitive to PATH and LD_LIBRARY_PATH.
+# shellcheck source=ood/lib/launch-common.sh
+. "${REPO_ROOT}/ood/lib/launch-common.sh"
+APPTAINER_BIN=$(lc_apptainer_bin) || exit 1
+log "apptainer=${APPTAINER_BIN}"
+
 # The architecture the cluster runs, in `uname -m` form -- the vocabulary ops
 # staff and the rest of this repo use. An artifact that does not match is not
 # publishable, however useful the build was for validating the definition.
@@ -113,13 +123,13 @@ if [ "$(normalize_arch "$HOST_ARCH")" != "$(normalize_arch "$TARGET_ARCH")" ]; t
 fi
 
 log "building ${TARGET} -> ${SIF}"
-( cd "${IMAGES_ROOT}/${FAMILY}" && apptainer build --fakeroot "$SIF" "$DEF" )
+( cd "${IMAGES_ROOT}/${FAMILY}" && "${APPTAINER_BIN}" build --fakeroot "$SIF" "$DEF" )
 
 # Check the ARTIFACT's architecture, not the build host's. A cross-build would
 # otherwise pass a host check and produce something the cluster cannot run.
 # Read it from the SIF's own metadata: `apptainer exec` is not usable here,
 # because running a foreign-architecture binary is exactly what fails.
-ARTIFACT_ARCH=$(apptainer inspect --json "$SIF" \
+ARTIFACT_ARCH=$("${APPTAINER_BIN}" inspect --json "$SIF" \
     | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("data",{}).get("attributes",{}).get("labels",{}).get("org.label-schema.build-arch",""))')
 if [ -z "$ARTIFACT_ARCH" ]; then
     log "ERROR: cannot determine the artifact architecture from ${SIF}"

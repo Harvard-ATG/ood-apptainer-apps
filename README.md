@@ -80,7 +80,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 |---|---|---|
 | `OOD_APPTAINER_IMAGE_ROOT_FAST` | `/scratch/apptainerImages` | launcher |
 | `OOD_APPTAINER_IMAGE_ROOT_CANONICAL` | `/shared/apptainerImages` | launcher |
-| `OOD_APPTAINER_BIN` | discovered via the Spack `apptainer` environment | launcher |
+| `OOD_APPTAINER_BIN` | discovered via the Spack `apptainer` environment | launcher, `build-image.sh` |
 | `OOD_APPTAINER_SCRATCH_ROOT` | `/scratch/<user>/ood/apptainer` | launcher, `submit-provision-course-env.sh` |
 | `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `submit-provision-course-env.sh` |
 | `OOD_APPTAINER_TARGET_ARCH` | `x86_64` | `build-image.sh` |

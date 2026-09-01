@@ -13,6 +13,18 @@ assert_success test -x "$S"
 it "it refuses an unknown target rather than guessing"
 assert_failure bash "$S" not-a-family/not-an-app
 
+it "it resolves Apptainer the way every other entry point does"
+# Bare `apptainer` on PATH means whoever runs this had to activate Spack first
+# and remember to. lc_apptainer_bin resolves it -- honouring OOD_APPTAINER_BIN,
+# which the build path otherwise ignored -- inside a command substitution, so
+# Spack's activation stays in that subshell and never reaches the build.
+body=$(cat "$S")
+assert_contains "$body" "lc_apptainer_bin"
+
+it "it invokes the resolved binary at both call sites, never a bare apptainer"
+assert_not_contains "$body" '( cd "${IMAGES_ROOT}/${FAMILY}" && apptainer build'
+assert_not_contains "$body" 'ARTIFACT_ARCH=$(apptainer inspect'
+
 it "it refuses to build from a dirty worktree"
 body=$(cat "$S")
 assert_contains "$body" "git status --porcelain"
@@ -64,7 +76,9 @@ assert_contains "$body" "OOD_APPTAINER_TARGET_ARCH="
 
 it "the early warning precedes the build, or it saves nothing"
 warn_pos=$(printf '%s' "$body" | grep -n "WARNING: build host is" | head -1 | cut -d: -f1)
-build_pos=$(printf '%s' "$body" | grep -n "apptainer build --fakeroot \"\$SIF\"" | head -1 | cut -d: -f1)
+# Matched on the arguments rather than the binary: how Apptainer is named is
+# the previous test's business, not this one's.
+build_pos=$(printf '%s' "$body" | grep -n "build --fakeroot \"\$SIF\"" | head -1 | cut -d: -f1)
 assert_eq "$([ "$warn_pos" -lt "$build_pos" ] && echo before || echo after)" "before"
 
 it "it still warns rather than refuses -- cross-arch validation builds are legitimate"
