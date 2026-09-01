@@ -123,7 +123,11 @@ if [ "$(normalize_arch "$HOST_ARCH")" != "$(normalize_arch "$TARGET_ARCH")" ]; t
 fi
 
 log "building ${TARGET} -> ${SIF}"
-( cd "${IMAGES_ROOT}/${FAMILY}" && "${APPTAINER_BIN}" build --fakeroot "$SIF" "$DEF" )
+# `apptainer build --fakeroot` shells out to mksquashfs, which sits next to the
+# apptainer binary in the same Spack view (not on PATH here by design -- see
+# the note above APPTAINER_BIN). Put just that one directory on PATH for the
+# build, rather than the whole Spack-activated environment.
+( cd "${IMAGES_ROOT}/${FAMILY}" && PATH="$(dirname "$APPTAINER_BIN"):${PATH}" "${APPTAINER_BIN}" build --fakeroot "$SIF" "$DEF" )
 
 # Check the ARTIFACT's architecture, not the build host's. A cross-build would
 # otherwise pass a host check and produce something the cluster cannot run.
