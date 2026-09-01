@@ -22,7 +22,7 @@ There are four components, with a deliberate split of ownership between them:
 | Component | Owns | Lives |
 |---|---|---|
 | **Image** | The server, the AI CLIs, editor and JupyterLab extensions | `images/` |
-| **Course environment** | `ipykernel` and everything a notebook imports | Outside this repo, on the shared filesystem, maintained by teaching staff |
+| **Course environment** | `ipykernel` and everything a notebook imports | Outside this repo, on the shared filesystem, maintained by teaching staff. `envs/<course>/` holds only the initial spec it is first built from |
 | **Sub-app** | Who may launch it, which image, which course folder, what Slurm resources | `ood/<app>/local/` |
 | **Launcher** | Path validation, containment, and starting the server | `ood/lib/` and `ood/<app>/template/` |
 
@@ -54,10 +54,11 @@ The launcher is split in two halves: the host-side half validates paths and deci
 │   │   └── local/              live per-course sub-apps
 │   └── codeserver-ai/          same shape
 ├── scripts/                    build, provisioning and release-gate scripts
+│   └── lib/app-dirs.sh         app discovery — every per-app loop reads this
 └── tests/                      verification suite
 ```
 
-**Adding an app.** An app is a directory under `ood/` holding a `manifest.yml`; that is the whole of what discovery needs, so vendoring and most of the suite cover a new app as soon as it exists. What still has to be written down is everything that states a fact about it: an image family under `images/`, its Canvas gating in `tests/test-subapps.sh`, and its display name and script expectations in the suites that assert those. Adding one requires no edit to the apps already here.
+**Adding an app.** An app is a directory under `ood/` holding a `manifest.yml`; that is the whole of what `scripts/lib/app-dirs.sh` needs to discover it, so vendoring and most of the suite cover a new app as soon as it exists. What still has to be written down is everything that states a fact about it: an image family under `images/`, its Canvas gating in `tests/test-subapps.sh`, and its display name and script expectations in the suites that assert those. Adding one requires no edit to the apps already here.
 
 ## Scripts
 
