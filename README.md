@@ -45,7 +45,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 │   ├── jupyter-codeserver/     (not built) the same two servers, without the agents
 │   └── rstudio/                (not built) an unrelated family would sit alongside
 ├── envs/<course>/              initial course environment specification
-├── docs/                       how to provision and maintain those environments
+├── docs/                       building images, and maintaining course environments
 ├── ood/
 │   ├── lib/launch-common.sh    canonical shared launch logic — EDIT HERE
 │   ├── jupyterlab-ai/          parent app (form.yml, manifest.yml, submit.yml.erb, …)
@@ -115,9 +115,7 @@ scripts/submit-build-image.sh jupyter-codeserver-ai/jupyterlab    # builds into 
 scripts/deploy-image.sh build/jupyterlab-<stamp>-<commit>.sif     # publishes to both image roots
 ```
 
-`deploy-image.sh` copies the artifact and both sidecars to the canonical root and then the fast root, verifying the checksum at each, and refuses to overwrite anything already deployed. It is a file copy, so it runs wherever you type it — no compute node, no Apptainer.
-
-It deliberately stops there. The `imagefile:` line it prints is for you to set in the sub-app and commit, because putting a new image in front of students is a reviewed change and this is not.
+See [docs/images.md](docs/images.md) for the options, what a build produces, and how to point a sub-app at a new image.
 
 ## Tests
 
