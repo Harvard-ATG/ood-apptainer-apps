@@ -1,10 +1,9 @@
 # Course Python environments
 
-ATG provisions a course's Python prefix at `<environment_root>/default` from
-the spec in `envs/<course>/`, and maintains it on request. Provisioning creates
-the prefix and records the manager and source spec beside it. It writes no
-documentation into the course shared folder, which every student on the course
-can read.
+A course's Python prefix at `<environment_root>/default` is provisioned from
+the spec in `envs/<course>/` and maintained on request from the course.
+Provisioning creates the prefix and records the manager and source spec beside
+it.
 
 ## The spec
 
