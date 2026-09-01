@@ -4,10 +4,12 @@ Apptainer-based [Open OnDemand][ood] interactive apps with AI coding agents prei
 
 Students launch a session from the OOD portal, land in a container on a compute node, and get a notebook or editor with [Claude Code][cc] and [Codex][codex] on `PATH`. They sign in to those tools with their own accounts; no shared credentials exist in any image.
 
-> **These apps carry a wider blast radius than the standard ones.** Code-server
-> workspace trust is disabled, the student's real home is mounted read-write,
-> and either agent can read and transmit any unmasked file the student can
-> read.
+> **The AI apps carry a wider blast radius than the standard ones.** In
+> `jupyterlab-ai` and `codeserver-ai` the student's real home is mounted
+> read-write and either agent can read and transmit any unmasked file the
+> student can read; in `codeserver-ai`, workspace trust is also disabled. An
+> app built without the agents does not inherit any of this, which is the
+> point of keeping the variants separate.
 
 [ood]: https://openondemand.org/
 [cc]: https://www.anthropic.com/claude-code
@@ -32,25 +34,30 @@ The launcher is split in two halves: the host-side half validates paths and deci
 
 ```text
 .
-├── images/jupyter-codeserver-ai/
-│   ├── common/               shared recipe both images run — identical AI surface
-│   │   ├── claude-code/      managed settings and MCP policy, baked in at build
-│   │   ├── codex/            managed config and its pinned requirements
-│   │   └── versions.env      every pinned version, in one place
-│   ├── jupyterlab/           Apptainer definition, from the Jupyter Docker Stacks base
-│   └── codeserver/           Apptainer definition, from an Ubuntu base
-├── envs/<course>/            initial course environment specification
+├── images/
+│   ├── jupyter-codeserver-ai/  the AI image family — one recipe, two servers
+│   │   ├── common/             shared recipe both images run — identical AI surface
+│   │   │   ├── claude-code/    managed settings and MCP policy, baked in at build
+│   │   │   ├── codex/          managed config and its pinned requirements
+│   │   │   └── versions.env    every pinned version, in one place
+│   │   ├── jupyterlab/         Apptainer definition, from the Jupyter Docker Stacks base
+│   │   └── codeserver/         Apptainer definition, from an Ubuntu base
+│   ├── jupyter-codeserver/     (not built) the same two servers, without the agents
+│   └── rstudio/                (not built) an unrelated family would sit alongside
+├── envs/<course>/              initial course environment specification
 ├── ood/
-│   ├── lib/launch-common.sh  canonical shared launch logic — EDIT HERE
-│   ├── jupyterlab-ai/        parent app (form.yml, manifest.yml, submit.yml.erb, …)
-│   │   ├── template/         host-side scripts and the in-container launcher
-│   │   │   └── lib/          vendored launch-common.sh — regenerate, never edit
-│   │   ├── examples/         copy source for a new course sub-app
-│   │   └── local/            live per-course sub-apps
-│   └── codeserver-ai/        same shape
-├── scripts/                  build, provisioning and release-gate scripts
-└── tests/                    verification suite
+│   ├── lib/launch-common.sh    canonical shared launch logic — EDIT HERE
+│   ├── jupyterlab-ai/          parent app (form.yml, manifest.yml, submit.yml.erb, …)
+│   │   ├── template/           host-side scripts and the in-container launcher
+│   │   │   └── lib/            vendored launch-common.sh — regenerate, never edit
+│   │   ├── examples/           copy source for a new course sub-app
+│   │   └── local/              live per-course sub-apps
+│   └── codeserver-ai/          same shape
+├── scripts/                    build, provisioning and release-gate scripts
+└── tests/                      verification suite
 ```
+
+**Adding an app.** An app is a directory under `ood/` holding a `manifest.yml`; that is the whole of what discovery needs, so vendoring and most of the suite cover a new app as soon as it exists. What still has to be written down is everything that states a fact about it: an image family under `images/`, its Canvas gating in `tests/test-subapps.sh`, and its display name and script expectations in the suites that assert those. Adding one requires no edit to the apps already here.
 
 ## Scripts
 
