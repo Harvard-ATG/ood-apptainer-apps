@@ -9,9 +9,15 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/lib/app-dirs.sh
+. scripts/lib/app-dirs.sh
 CANON=ood/lib/launch-common.sh
 
-for app in jupyterlab-ai codeserver-ai; do
+# Captured before the loop so a failed discovery aborts here rather than
+# silently vendoring into nothing.
+apps=$(ood_app_dirs)
+
+for app in $apps; do
     dest="ood/${app}/template/lib"
     mkdir -p "$dest"
     cp "$CANON" "$dest/launch-common.sh"

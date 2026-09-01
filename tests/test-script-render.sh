@@ -14,7 +14,30 @@ SUB=fixtures/sample-subapp.yml.erb
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-for app in jupyterlab-ai codeserver-ai; do
+# shellcheck source=scripts/lib/app-dirs.sh
+. ../scripts/lib/app-dirs.sh
+apps=$(ood_app_dirs) || { it "app discovery"; _fail "ood_app_dirs failed"; finish; exit 1; }
+
+# Most of the loop body below is true of any app that launches a container
+# through the shared library. A block of it is not: an app whose image bakes
+# Claude Code and Codex must point them at config locations and pre-create
+# their credential directories, and an app without agents must not be held to
+# any of that.
+#
+# So each app declares which it is. This is not the pinned app list that
+# discovery replaces -- discovery still finds every app, and this says nothing
+# about which apps exist. It records one fact per app that cannot be derived
+# from the filesystem, and an app named in neither arm fails loudly. The
+# alternative, inferring it from the `-ai` directory suffix, would make a typo
+# in a new directory name silently skip every agent assertion.
+app_agent_class() {  # -> "ai" | "none" | "" for an undeclared app
+    case "$1" in
+        jupyterlab-ai|codeserver-ai) printf 'ai' ;;
+        *) printf '' ;;
+    esac
+}
+
+for app in $apps; do
     rendered="$TMP/$app-script.sh"
     FAKE_GROUPS='canvas170681-999' FAKE_STAGED_ROOT="$TMP/staged" \
       ruby render.rb --template "../ood/$app/template/script.sh.erb" --form "$SUB" \
@@ -24,6 +47,15 @@ for app in jupyterlab-ai codeserver-ai; do
 
     it "$app: script.sh.erb renders"
     _pass
+
+    agents=$(app_agent_class "$app")
+
+    it "$app: declares whether its image bundles the AI coding agents"
+    if [ -n "$agents" ]; then
+        _pass
+    else
+        _fail "undeclared app '$app'. Add it to app_agent_class() above: 'ai' if its image bakes Claude Code and Codex, 'none' if it does not."
+    fi
 
     it "$app: sources the staged shared library"
     assert_contains "$body" '${JOBROOT}/lib/launch-common.sh'
@@ -71,12 +103,6 @@ for app in jupyterlab-ai codeserver-ai; do
     it "$app: creates state directories with the shared helper"
     assert_contains "$body" "lc_make_state_dirs"
 
-    if [ "$app" = jupyterlab-ai ]; then
-        it "$app: points tiktoken at the cache baked into the image"
-        # Without this the encoding is re-downloaded on every session start.
-        assert_contains "$body" "TIKTOKEN_CACHE_DIR=/opt/tiktoken"
-    fi
-
     it "$app: sets PYTHONNOUSERSITE in the environment file"
     assert_contains "$body" "PYTHONNOUSERSITE=1"
 
@@ -86,24 +112,35 @@ for app in jupyterlab-ai codeserver-ai; do
     # codeserver.script.sh depend on it arriving at all.
     assert_contains "$body" '"COURSE_ENV_STATUS=${COURSE_ENV_STATUS}"'
 
-    it "$app: sets DISABLE_AUTOUPDATER in the environment file"
-    assert_contains "$body" "DISABLE_AUTOUPDATER=1"
+    if [ "$agents" = ai ]; then
+        it "$app: sets DISABLE_AUTOUPDATER in the environment file"
+        assert_contains "$body" "DISABLE_AUTOUPDATER=1"
 
-    it "$app: points Claude at its DEFAULT config location in the real home"
-    # The default location, not a bespoke one: any tool, extension, plugin or
-    # skill that discovers configuration by convention then works with no
-    # special-casing, and there is no host/container discrepancy.
-    assert_contains "$body" 'CLAUDE_CONFIG_DIR=${HOME}/.claude'
+        it "$app: points Claude at its DEFAULT config location in the real home"
+        # The default location, not a bespoke one: any tool, extension, plugin or
+        # skill that discovers configuration by convention then works with no
+        # special-casing, and there is no host/container discrepancy.
+        assert_contains "$body" 'CLAUDE_CONFIG_DIR=${HOME}/.claude'
 
-    it "$app: points Codex at its DEFAULT config location in the real home"
-    assert_contains "$body" 'CODEX_HOME=${HOME}/.codex'
+        it "$app: points Codex at its DEFAULT config location in the real home"
+        assert_contains "$body" 'CODEX_HOME=${HOME}/.codex'
 
-    it "$app: no longer uses the bespoke ood-huit config root"
-    assert_not_contains "$body" "ood-huit"
+        it "$app: no longer uses the bespoke ood-huit config root"
+        assert_not_contains "$body" "ood-huit"
 
-    it "$app: creates both credential directories so the CLIs never race to mkdir"
-    assert_contains "$body" '"${HOME}/.claude"'
-    assert_contains "$body" '"${HOME}/.codex"' 
+        it "$app: creates both credential directories so the CLIs never race to mkdir"
+        assert_contains "$body" '"${HOME}/.claude"'
+        assert_contains "$body" '"${HOME}/.codex"'
+    fi
+
+    if [ "$app" = jupyterlab-ai ]; then
+        # Narrower than the agent class: this is about one package in one
+        # image. notebook-intelligence resolves a tiktoken encoding at import,
+        # and without this the encoding is re-downloaded on every session
+        # start. Code Server bakes the agents but not that package.
+        it "$app: points tiktoken at the cache baked into the image"
+        assert_contains "$body" "TIKTOKEN_CACHE_DIR=/opt/tiktoken"
+    fi
 done
 
 it "jupyterlab: runs the JupyterLab in-container launcher"

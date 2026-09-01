@@ -39,7 +39,11 @@ manifest_field() {  # <app dir name> <top-level key>
         "../ood/$1/manifest.yml" "$2" 2>&1
 }
 
-for app in jupyterlab-ai codeserver-ai; do
+# shellcheck source=scripts/lib/app-dirs.sh
+. ../scripts/lib/app-dirs.sh
+apps=$(ood_app_dirs) || { it "app discovery"; _fail "ood_app_dirs failed"; finish; exit 1; }
+
+for app in $apps; do
     it "$app: view.html.erb renders without raising"
     # The consequence, not the output: an ERB or Ruby error here is a broken
     # Connect button on a live session card.

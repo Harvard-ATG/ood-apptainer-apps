@@ -20,7 +20,11 @@ render_before() {
       ruby render.rb --template "../ood/$app/template/before.sh.erb" --form "$SUB"
 }
 
-for app in jupyterlab-ai codeserver-ai; do
+# shellcheck source=scripts/lib/app-dirs.sh
+. ../scripts/lib/app-dirs.sh
+apps=$(ood_app_dirs) || { it "app discovery"; _fail "ood_app_dirs failed"; finish; exit 1; }
+
+for app in $apps; do
     rendered="$TMP/$app-before.sh"
     render_before "$app" > "$rendered" 2>"$rendered.err" || {
         it "$app: before.sh.erb renders"

@@ -14,7 +14,11 @@ SUB=fixtures/sample-subapp.yml.erb
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-for app in jupyterlab-ai codeserver-ai; do
+# shellcheck source=scripts/lib/app-dirs.sh
+. ../scripts/lib/app-dirs.sh
+apps=$(ood_app_dirs) || { it "app discovery"; _fail "ood_app_dirs failed"; finish; exit 1; }
+
+for app in $apps; do
     rendered="$TMP/$app-after.sh"
     FAKE_GROUPS='canvas170681-999' FAKE_STAGED_ROOT="$TMP/staged" \
       ruby render.rb --template "../ood/$app/template/after.sh.erb" --form "$SUB" \
