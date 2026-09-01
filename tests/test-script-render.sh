@@ -24,12 +24,12 @@ apps=$(ood_app_dirs) || { it "app discovery"; _fail "ood_app_dirs failed"; finis
 # their credential directories, and an app without agents must not be held to
 # any of that.
 #
-# So each app declares which it is. This is not the pinned app list that
-# discovery replaces -- discovery still finds every app, and this says nothing
-# about which apps exist. It records one fact per app that cannot be derived
-# from the filesystem, and an app named in neither arm fails loudly. The
-# alternative, inferring it from the `-ai` directory suffix, would make a typo
-# in a new directory name silently skip every agent assertion.
+# So each app declares which it is. This is not an app registry: discovery
+# finds every app, and this says nothing about which apps exist. It records one
+# fact per app that cannot be derived from the filesystem, and an app named in
+# neither arm fails loudly. The alternative, inferring it from the `-ai`
+# directory suffix, would make a typo in a new directory name silently skip
+# every agent assertion.
 app_agent_class() {  # -> "ai" | "none" | "" for an undeclared app
     case "$1" in
         jupyterlab-ai|codeserver-ai) printf 'ai' ;;
@@ -117,9 +117,10 @@ for app in $apps; do
         assert_contains "$body" "DISABLE_AUTOUPDATER=1"
 
         it "$app: points Claude at its DEFAULT config location in the real home"
-        # The default location, not a bespoke one: any tool, extension, plugin or
-        # skill that discovers configuration by convention then works with no
-        # special-casing, and there is no host/container discrepancy.
+        # The default location, not a bespoke one: any tool, extension,
+        # plugin or skill that discovers configuration by convention then
+        # works with no special-casing, and there is no host/container
+        # discrepancy.
         assert_contains "$body" 'CLAUDE_CONFIG_DIR=${HOME}/.claude'
 
         it "$app: points Codex at its DEFAULT config location in the real home"

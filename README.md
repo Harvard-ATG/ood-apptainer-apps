@@ -73,7 +73,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 
 ## Environment overrides
 
-**Nothing in a normal deployment sets any of these.** Every one is an optional override with an in-repo default, listed here so a deploy can be checked against it rather than against the source. They were renamed from `OOD_AI_*` with no compatibility alias, so a stale setter is not an error — its value is silently ignored in favour of the default below. That is the failure this table exists to make findable.
+**Nothing in a normal deployment sets any of these.** Every one is an optional override with an in-repo default, listed here so a deploy can be checked against it rather than against the source. Each is read as `${VAR:-default}`, so a setter whose name does not match one below is not an error — its value is silently ignored in favour of the default. That is the failure this table exists to make findable.
 
 | Variable | Default | Read by |
 |---|---|---|

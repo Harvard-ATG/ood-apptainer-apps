@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # scripts/lib/app-dirs.sh is what lets a new OOD app be covered by five suites
 # the moment it has a manifest, with no per-app edit. That convenience is also
-# its risk: `for app in $(ood_app_dirs)` can iterate zero times where the
-# hardcoded list it replaces could not, so a discovery bug would make those
-# suites pass while asserting nothing. The guard against that is the helper
-# failing loudly on an empty result, which is the second test here.
+# its risk: `for app in $(ood_app_dirs)` can iterate zero times, so a discovery
+# bug would make those suites pass while asserting nothing. The guard against
+# that is the helper failing loudly on an empty result, which is the second
+# test here.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/assert.sh
