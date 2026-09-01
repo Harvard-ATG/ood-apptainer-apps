@@ -84,10 +84,33 @@ third form (`Code Server`). All three are correct in their own place.
 bash tests/run-all.sh
 ```
 
-29 suites. Needs `ruby`, `jq` and GNU coreutils; `shellcheck` and `apptainer`
-are optional — the lint suite and the image-backed suites skip themselves when
-their dependency is missing. It runs unchanged on a laptop or a cluster compute
-node.
+29 suites. It runs unchanged on a Linux laptop or a cluster compute node, but it
+is **not portable to a stock macOS shell** — bash 3.2, BSD `sed` and BSD `stat`
+each produce failures that read like real defects.
+
+| Dependency | Needed for |
+|---|---|
+| `bash` ≥ 4 | `declare -A` and `mapfile`, in the release gate and two suites |
+| `ruby` | rendering every sub-app and template |
+| `jq` | the release gate, `build-course-env.sh`, `test-forms.sh` |
+| `apptainer` | nine suites that build and exec a stub container |
+| GNU `coreutils` | `stat -c` in the assertion helpers |
+| GNU `sed` | in-place fixture edits in `test-forms.sh` |
+| `shellcheck` | *optional* — `test-lint.sh` skips without it |
+
+**Only four suites skip themselves:** `test-lint.sh` without `shellcheck`, and
+the three image-backed suites when no built image is available. Every other
+suite fails rather than skipping, so **`apptainer` is required, not optional** —
+dozens of failures across the containment and launcher suites on a fresh clone
+usually means it is missing, not that something regressed.
+
+To include the image-backed suites, point them at a built image:
+
+```bash
+mkdir -p tests/.cache/images
+ln -s /path/to/built/jupyterlab tests/.cache/images/jupyterlab
+ln -s /path/to/built/codeserver tests/.cache/images/codeserver
+```
 
 `jq` is also a hard dependency of `scripts/render-forms.sh`, which is the gate
 to run before any deployment:
