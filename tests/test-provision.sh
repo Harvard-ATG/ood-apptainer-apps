@@ -394,7 +394,7 @@ it "cs1090a's otter-grader ceiling is recorded beside the pin it constrains"
 assert_contains "$(cat envs/cs1090a/environment.yml)" "consult ATG"
 
 # ---------------------------------------------------------------------------
-# scripts/build-course-env.sh: the admin wrapper that validates, submits ONE
+# scripts/submit-provision-course-env.sh: the admin wrapper that validates, submits ONE
 # compute-node job, and reports that job's real result.
 #
 # It needs a stub `sbatch` (records its argv and the job script it was
@@ -410,16 +410,16 @@ assert_contains "$(cat envs/cs1090a/environment.yml)" "consult ATG"
 # fake.
 # ---------------------------------------------------------------------------
 
-it "build-course-env.sh exists and is executable"
-assert_success test -x scripts/build-course-env.sh
+it "submit-provision-course-env.sh exists and is executable"
+assert_success test -x scripts/submit-provision-course-env.sh
 
 BCE_REPO="$ROOT/bce-repo"
 mkdir -p "$BCE_REPO/scripts" "$BCE_REPO/ood/lib" \
          "$BCE_REPO/ood/jupyterlab-ai/local" "$BCE_REPO/ood/codeserver-ai/local" \
          "$BCE_REPO/envs/am115" "$BCE_REPO/tests"
-cp scripts/build-course-env.sh "$BCE_REPO/scripts/build-course-env.sh"
+cp scripts/submit-provision-course-env.sh "$BCE_REPO/scripts/submit-provision-course-env.sh"
 cp scripts/provision-course-env.sh "$BCE_REPO/scripts/provision-course-env.sh"
-chmod 755 "$BCE_REPO/scripts/build-course-env.sh" "$BCE_REPO/scripts/provision-course-env.sh"
+chmod 755 "$BCE_REPO/scripts/submit-provision-course-env.sh" "$BCE_REPO/scripts/provision-course-env.sh"
 cp ood/lib/launch-common.sh "$BCE_REPO/ood/lib/launch-common.sh"
 cp tests/render.rb "$BCE_REPO/tests/render.rb"
 cp envs/am115/manager \
@@ -473,7 +473,7 @@ DERIVED_COURSE_FOLDER="${BCE_COURSE_ROOT}/172566outer/172566"
 build_course_env() {
     : > "$SBATCH_ARGV_LOG"
     : > "$SBATCH_JOB_SCRIPT_FILE"
-    "$BCE_REPO/scripts/build-course-env.sh" "$@" 2>&1
+    "$BCE_REPO/scripts/submit-provision-course-env.sh" "$@" 2>&1
     local status=$?
     SBATCH_ARGV=$(cat "$SBATCH_ARGV_LOG" 2>/dev/null || true)
     JOB_SCRIPT=$(cat "$SBATCH_JOB_SCRIPT_FILE" 2>/dev/null || true)
@@ -482,7 +482,7 @@ build_course_env() {
 
 build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
 
-it "build-course-env.sh submits ONE job and waits for it"
+it "submit-provision-course-env.sh submits ONE job and waits for it"
 # --wait is what lets the wrapper return the build's real result. Without it
 # the administrator gets a job id and a success message for a build that may
 # fail ten minutes later with nobody watching.
@@ -565,10 +565,10 @@ it "sbatch is told where to write the job's output"
 # Slurm writes slurm-<jobid>.out into whatever directory the administrator
 # submitted from, while the error message points at a path that does not
 # exist -- discovered after a ten-minute solve.
-assert_contains "$SBATCH_ARGV" "--output=$ROOT/bce-scratch/provisioning/am115/build.log"
+assert_contains "$SBATCH_ARGV" "--output=$ROOT/bce-scratch/provisioning/am115/provision.log"
 
-it "sbatch is given the job name the smoke checklist documents"
-assert_contains "$SBATCH_ARGV" "--job-name=build-course-env-am115"
+it "the job is named for the script that runs it, not for the submitter"
+assert_contains "$SBATCH_ARGV" "--job-name=provision-course-env-am115"
 
 it "it fails when the course specification directory is missing"
 assert_contains "$(build_course_env --course nosuch --canvas-id 1 --image i.sif)" "nosuch"
@@ -594,7 +594,7 @@ it "it propagates the job's failure to its own exit status"
 SBATCH_EXIT=7 build_course_env --course am115 --canvas-id 172566 --image ok.sif >/dev/null
 assert_eq "$?" "7"
 
-it "a failed build names the Slurm log path so an administrator knows where to look"
+it "a failed job names the Slurm log path so an administrator knows where to look"
 # The exit-status test above redirects all output to /dev/null and checks
 # only $?, so it would not notice this text vanishing. The submission message
 # ALSO names the log path unconditionally (both on success and failure), so a
@@ -603,7 +603,7 @@ it "a failed build names the Slurm log path so an administrator knows where to l
 # failure phrasing plus the path together, which only the failure branch
 # emits.
 FAILED_OUT=$(SBATCH_EXIT=7 build_course_env --course am115 --canvas-id 172566 --image ok.sif)
-assert_contains "$FAILED_OUT" "see Slurm log at $ROOT/bce-scratch/provisioning/am115/build.log"
+assert_contains "$FAILED_OUT" "see Slurm log at $ROOT/bce-scratch/provisioning/am115/provision.log"
 
 it "--rebuild is reflected in the generated job script"
 build_course_env --course am115 --canvas-id 172566 --image ok.sif --rebuild >/dev/null
@@ -629,10 +629,10 @@ build_course_env --course am115 --canvas-id 172566 --image ok.sif --dry-run >/de
 assert_eq "$?" "0"
 
 it "it requires all three mandatory flags"
-assert_contains "$(scripts/build-course-env.sh --course am115 2>&1)" "usage"
+assert_contains "$(scripts/submit-provision-course-env.sh --course am115 2>&1)" "usage"
 
 it "it rejects an unknown flag"
-assert_contains "$(scripts/build-course-env.sh --nope 2>&1)" "usage"
+assert_contains "$(scripts/submit-provision-course-env.sh --nope 2>&1)" "usage"
 
 it "it prints the derived course folder and environment root"
 OUT=$(build_course_env --course am115 --canvas-id 172566 --image ok.sif)
@@ -658,7 +658,7 @@ it "it fails, naming the disagreement, when a sub-app's declared path disagrees 
 # A course whose spec directory exists but whose sub-apps declare a DIFFERENT
 # course folder than the one just derived -- the copy-paste-and-forgot-to-
 # update-the-folder mistake render-forms.sh's own check #6 guards against at
-# the OOD-form layer. This proves build-course-env.sh guards it too, at the
+# the OOD-form layer. This proves the submitter guards it too, at the
 # provisioning layer, independently.
 mkdir -p "$BCE_REPO/envs/mismatched"
 cp envs/am115/manager \

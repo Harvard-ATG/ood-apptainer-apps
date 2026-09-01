@@ -66,8 +66,8 @@ The launcher is split in two halves: the host-side half validates paths and deci
 | Script | Purpose |
 |---|---|
 | `build-image.sh` | Builds one immutable image artifact with checksum and metadata sidecars |
-| `build-course-env.sh` | Submits a compute-node job that provisions one course's Python environment |
-| `provision-course-env.sh` | The image-side helper that job runs |
+| `submit-provision-course-env.sh` | Submits the compute-node job that provisions one course's Python environment |
+| `provision-course-env.sh` | The image-side script that job runs |
 | `render-forms.sh` | Release gate — renders every sub-app against its templates and cross-checks them |
 | `sync-launch-lib.sh` | Vendors the shared launch library into each app |
 | `smoke-test-checklist.md` | Manual QA checklist, run once per course per term |
@@ -81,8 +81,8 @@ The launcher is split in two halves: the host-side half validates paths and deci
 | `OOD_APPTAINER_IMAGE_ROOT_FAST` | `/scratch/apptainerImages` | launcher |
 | `OOD_APPTAINER_IMAGE_ROOT_CANONICAL` | `/shared/apptainerImages` | launcher |
 | `OOD_APPTAINER_BIN` | discovered via the Spack `apptainer` environment | launcher |
-| `OOD_APPTAINER_SCRATCH_ROOT` | `/scratch/<user>/ood/apptainer` | launcher, `build-course-env.sh` |
-| `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `build-course-env.sh` |
+| `OOD_APPTAINER_SCRATCH_ROOT` | `/scratch/<user>/ood/apptainer` | launcher, `submit-provision-course-env.sh` |
+| `OOD_APPTAINER_COURSE_SHARED_ROOT` | `/shared/courseSharedFolders` | `submit-provision-course-env.sh` |
 | `OOD_APPTAINER_TARGET_ARCH` | `x86_64` | `build-image.sh` |
 | `OOD_APPTAINER_OUTPUT_DIR` | `<repo>/build` | `build-image.sh` |
 | `OOD_APPTAINER_BUILD_SCRATCH` | `/scratch/<user>/apptainer-build` | `build-image.sh` |

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# The administrator's entry point for building one course's Python environment.
+# The administrator's entry point for provisioning one course's Python
+# environment. Submits the job; scripts/provision-course-env.sh is what runs.
 #
-#   build-course-env.sh --course <name> --canvas-id <id> --image <imagefile> \
+#   submit-provision-course-env.sh --course <name> --canvas-id <id> \
+#       --image <imagefile> \
 #       [--rebuild] [--dry-run] [--environment-root <path>]
 #
 # Initial provisioning cannot use the normal OOD launch path: by definition,
 # <environment_root>/default and its Python interpreter do not exist yet.
-# Building the environment is also compute work -- a solver run for an
+# Provisioning the environment is also compute work -- a solver run for an
 # environment this size is not login-node work -- so this wrapper only
 # validates and submits; it never provisions anything itself. `sbatch --wait`
-# is what lets it return the build's real result: without --wait the
-# administrator gets a job id and an apparent success for a build that may
+# is what lets it return the job's real result: without --wait the
+# administrator gets a job id and an apparent success for a job that may
 # fail ten minutes later with nobody watching.
 #
 # REQUIRES `jq` (it reads the rendered sub-apps in step 4's agreement check).
@@ -18,7 +20,7 @@
 # warning -- but without jq that check fails rather than being skipped.
 set -uo pipefail
 
-this_script="scripts/build-course-env.sh"
+this_script="scripts/submit-provision-course-env.sh"
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 LAUNCH_COMMON="${REPO_ROOT}/ood/lib/launch-common.sh"
@@ -161,7 +163,7 @@ IMAGE_PATH=$(lc_select_image "$IMAGE_FILE") \
 # path uses, so nothing here competes with a live session's cache.
 SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/apptainer}"
 PROVISION_SCRATCH="${SCRATCH_ROOT}/provisioning/${COURSE}"
-SLURM_LOG="${PROVISION_SCRATCH}/build.log"
+SLURM_LOG="${PROVISION_SCRATCH}/provision.log"
 
 REBUILD_FLAG=""
 [ "$REBUILD" -eq 1 ] && REBUILD_FLAG=" --rebuild"
@@ -212,24 +214,24 @@ fi
 mkdir -p "$PROVISION_SCRATCH" \
     || fail "cannot create provisioning scratch directory '${PROVISION_SCRATCH}'"
 
-JOB_SCRIPT_FILE=$(mktemp "${PROVISION_SCRATCH}/build-XXXXXX.sh") \
+JOB_SCRIPT_FILE=$(mktemp "${PROVISION_SCRATCH}/provision-XXXXXX.sh") \
     || fail "cannot create a temporary job script under '${PROVISION_SCRATCH}'"
 trap 'rm -f "$JOB_SCRIPT_FILE"' EXIT
 printf '%s\n' "$JOB_SCRIPT_CONTENT" > "$JOB_SCRIPT_FILE"
 chmod 755 "$JOB_SCRIPT_FILE"
 
 # --- Step 8: submit ONE job, wait for it, and report its real result --------
-lc_log "submitting build job for course '${COURSE}' (Slurm log: ${SLURM_LOG})"
+lc_log "submitting provisioning job for course '${COURSE}' (Slurm log: ${SLURM_LOG})"
 sbatch --wait \
-    --job-name="build-course-env-${COURSE}" \
+    --job-name="provision-course-env-${COURSE}" \
     --output="$SLURM_LOG" \
     "$JOB_SCRIPT_FILE"
 status=$?
 
 if [ "$status" -ne 0 ]; then
-    lc_log "ERROR: build job for course '${COURSE}' failed (exit ${status}); see Slurm log at ${SLURM_LOG}"
+    lc_log "ERROR: provisioning job for course '${COURSE}' failed (exit ${status}); see Slurm log at ${SLURM_LOG}"
 else
-    lc_log "build job for course '${COURSE}' succeeded"
+    lc_log "provisioning job for course '${COURSE}' succeeded"
 fi
 
 exit "$status"

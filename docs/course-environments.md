@@ -23,7 +23,8 @@ When a requested package is deliberately left out, or a version ceiling is
 deliberately set, say why in the dependency file. That comment is the answer
 when the course asks again next term.
 
-`scripts/build-course-env.sh` submits the provisioning job.
+`scripts/submit-provision-course-env.sh` submits the job that runs
+`scripts/provision-course-env.sh` on a compute node.
 
 ## Maintaining a prefix
 

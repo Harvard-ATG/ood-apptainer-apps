@@ -2,7 +2,7 @@
 # Creates one course Python environment prefix, AT ITS FINAL ABSOLUTE PATH.
 #
 # Runs inside the JupyterLab image on a compute node, launched by
-# scripts/build-course-env.sh's batch job -- never through the OOD launch
+# scripts/submit-provision-course-env.sh's batch job -- never through the OOD launch
 # path, because by definition the interpreter it is about to create does not
 # exist yet.
 #

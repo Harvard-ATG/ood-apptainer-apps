@@ -43,7 +43,7 @@ shortcut them:
 
 | # | Check | Result | Date |
 |---|---|---|---|
-| 0 | Confirm `ruby` and `jq` are on `PATH` on the node you are running from. Both are hard dependencies of `scripts/render-forms.sh` and of the test suite; `jq` is also required by `scripts/build-course-env.sh`. The gate reports which one is missing and exits nonzero, so this is a five-second check that saves reading its output twice. | | |
+| 0 | Confirm `ruby` and `jq` are on `PATH` on the node you are running from. Both are hard dependencies of `scripts/render-forms.sh` and of the test suite; `jq` is also required by `scripts/submit-provision-course-env.sh`. The gate reports which one is missing and exits nonzero, so this is a five-second check that saves reading its output twice. | | |
 | 1 | Render all four sub-app forms (`scripts/render-forms.sh`) and verify access ID, canonical filesystem ID, image, environment, and resource values. | | |
 | 2 | `scripts/render-forms.sh` exits zero and its final line reports **four** sub-app(s) checked, zero failures. | | |
 | 3 | Verify every cross-listed population can see the intended app, checked with a **non-admin enrolled account**. Administrator visibility proves nothing about student visibility, because the two match on different group lists. | | |
@@ -53,7 +53,6 @@ shortcut them:
 | 7 | Confirm the PROD deploy clone has no uncommitted modifications. A dirty worktree is expected only during an announced maintenance window; one left behind afterward means a sub-app is still disabled or a temporary edit was never reverted. | | |
 | 8 | Confirm both app symlinks resolve, and that `/opt`, `/opt/harvard-atg`, the repository directory, and the app files are traversable and readable as an **ordinary student account** — not merely as an administrator. | | |
 | 9 | **After any deployment pull**, confirm no file landed without world-read: run `find . ! -perm -o+r` from the deploy clone root and confirm it reports nothing. This is the umask failure mode, and it produces no error anywhere else. | | |
-| 10 | Confirm the Slurm job name (`build-course-env-<course>`) and log path (`<scratch>/provisioning/<course>/build.log`) used by `scripts/build-course-env.sh` match local operations conventions. Neither the design nor the implementation plan specified a convention here — this plan invented one because something had to be picked — so this is the point to align it with how this cluster's other Slurm jobs are named and logged, before anyone starts relying on the current values. It is two string literals in `scripts/build-course-env.sh`; changing it later, once run logs and muscle memory depend on it, is not as cheap. | | |
 
 ## Sign-in and tooling
 
