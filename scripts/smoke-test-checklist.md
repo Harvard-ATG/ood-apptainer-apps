@@ -8,7 +8,12 @@ whether a `git pull` silently stripped world-read off every file.
 
 For each item, record a result (`pass`, `fail`, or `n/a` with a reason) and the date it
 was checked. Use one row per run; keep prior runs rather than overwriting them, so a
-regression shows up as a row that used to pass.
+regression shows up as a row that used to pass. Row numbers are therefore identifiers
+across runs — never renumber a row, even when one is retired.
+
+Some rows apply only to apps whose image bundles the AI coding agents. The two
+sections containing them say so at the top; for any other app mark those rows
+`n/a (no agents)` and leave the rest of the section alone.
 
 Three of these carry a warning explaining why they are checked exactly this way,
 because each records a failure that has actually happened in this app family. Do not
@@ -52,6 +57,11 @@ shortcut them:
 
 ## Sign-in and tooling
 
+**Scope.** Row 1 applies to every app. Rows 2–3 and 5–7 are about the agent CLIs and
+apply only to an app whose image bundles them. Row 4 is mixed: its three non-agent
+extensions (`ms-python.python`, `ms-toolsai.jupyter`, `ms-toolsai.jupyter-renderers`)
+and the workspace-trust check apply to any code-server app, agents or not.
+
 | # | Check | Result | Date |
 |---|---|---|---|
 | 1 | Launch each app for each course. | | |
@@ -65,6 +75,15 @@ shortcut them:
 
 ## Policy and containment
 
+This section covers two different things, so it is split. Numbering is continuous
+across both halves because row numbers identify a row across runs.
+
+### Agent policy — only for apps whose image bundles the agents
+
+Mark all of these `n/a (no agents)` for an app without them. Skipping them for an app
+*with* agents is never correct: each one is the only check of a policy that fails
+silently.
+
 | # | Check | Result | Date |
 |---|---|---|---|
 | 1 | Inspect Claude `/status` and record which managed source won. | | |
@@ -72,6 +91,15 @@ shortcut them:
 | 2a | Record Claude `/status` shows **no** IDE error. A red `code --force --install-extension anthropic.claude-code` error means `CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL=1` is not reaching the session, or `CLAUDE_EXT_VERSION` and `CLAUDE_CODE_VERSION` have drifted apart in `versions.env`. | | |
 | 3 | Inspect Codex's effective requirements after login. It must start a session at all, and `/status` must report an **enforcing** sandbox consistent with `default_permissions = ":workspace"` — record the exact string. **`No Sandbox (Ask for approval)` is now a failure, not the expected result**: that was the interim `:danger-full-access` state, and `--underlay` reversed it. `requirements.toml` allows only `:workspace` and `:read-only`, and its `deny_read` block cannot coexist with a non-enforcing mode, so a non-enforcing Codex here means the sandbox is silently broken. Confirm it also still prompts for approval. | | |
 | 3a | Confirm the cross-agent read denial is in effect, in both directions: from **Codex**, reading `~/.claude` must be denied; from **Claude Code**, reading `~/.codex` must be denied. Each agent is denied the **other** agent's credentials, never its own — denying an agent its own store would break its sign-in rather than protect anything. On an EDU login the Claude half depends on which managed source won (item 2), so record that result before reading this one. | | |
+
+### Containment — every app
+
+These are the checks a new app most needs and they have nothing to do with agents. An
+app that skips them because the rows above did not apply is the failure this split
+exists to prevent.
+
+| # | Check | Result | Date |
+|---|---|---|---|
 | 4 | Confirm `.ssh` is empty and masked. | | |
 | 5 | Confirm Slurm binaries, configuration, and Munge are absent. **Check this against the real, deployed image** — a stub image never contained them, so the equivalent automated test in the containment suite cannot fail for any change to the launcher and proves nothing about the shipped image. | | |
 | 6 | Confirm no other course's shared folder is reachable. | | |
