@@ -77,25 +77,28 @@ So the script is deliberately **not** idempotent, and its header says so. It che
 - **Modes are set explicitly**, on the files and on the family directory that a first deploy creates, rather than left to the deploying account's umask. Under `umask 077` that directory is `0700`, students cannot traverse it, and an image no student can read fails every session in the course silently, long after the deploy looked successful.
 - **A sub-app's `imagefile:` line is printed, not set.** Putting a new image in front of students is a reviewed change. A file copy is not.
 
-### Course environments and the three states
+### Course environments are external interpreter prefixes
 
-The environment is external to the image, under the course shared folder, at a tool-neutral root. The app's only runtime contract is a single interpreter beneath the resolved prefix. **Which interpreter counts is a fact about the app, not about the shared launch library.** `lc_classify_course_env` therefore takes it as an argument. Both current apps pass `bin/python`; an R app could pass `bin/R`. The argument is required rather than defaulted, so that one app cannot inherit another's assumption in silence: before it existed, an R prefix classified as **missing**, and the student got a degraded session complaining that there was no interpreter at `.../bin/python`.
+The course interpreter and its packages are not baked into the image. Each course has an environment root under its shared folder, outside the repository and the SIF. This separates the shared server from course dependencies and lets teaching staff maintain packages without rebuilding the image.
 
-One manager owns a prefix for its whole lifetime, so changing manager means recreating the prefix rather than mutating it. A uv-managed course installs its own standalone interpreter beneath the environment root. The prefix is therefore self-contained under either manager, and does not break when the image's Python changes. The prefix is created **at its final absolute path**, never built elsewhere and moved, because prefixes embed absolute paths in scripts and metadata.
+The environment root exposes two fixed names:
 
-A session classifies the environment into one of three states:
+```text
+<course shared folder>/
+└── envs/                   environment root
+    ├── default             active course prefix
+    └── staging             optional candidate prefix
+```
 
-| State | Meaning | Behaviour |
-|---|---|---|
-| **ok** | prefix exists, interpreter runs, imports `ipykernel` | course kernel is generated and is the default |
-| **missing** | prefix or interpreter absent | session **still starts**, image kernel only, logged loudly |
-| **broken** | interpreter exists but does not run | same as missing, detected by probe rather than by file test |
+Either name can be a real directory or a symlink to a versioned prefix. The fixed names let a course replace an environment without changing its sub-app. The launcher resolves both on the host. The environment root and `default` must remain beneath the course folder; an escaping `staging` target is omitted. `default` is available to both apps; `staging` is a JupyterLab-only staff affordance, shown when the environment root is writable by the user.
 
-The three states are a way of thinking about it, not three values in a variable. The host-side `COURSE_ENV_STATUS` carries only `ok` or `missing`. **broken** arrives there as `ok`, and the container catches it later. `lc_classify_course_env` in `ood/lib/launch-common.sh` writes the two values.
+Provisioning supports micromamba and uv, but the manager is a construction detail at runtime. One manager owns a prefix for its lifetime, and changing managers means recreating it. A uv environment includes its own standalone Python, so prefixes produced by either manager are self-contained and do not depend on the image's Python. Prefixes are created at their final absolute paths because scripts and package metadata can embed those paths.
 
-Only a path that **escapes the course folder** is fatal. That is a containment failure, not an absent environment, and it must never soften into a warning. Everything else degrades because a missing or broken dependency is recoverable, and a running session gives the user a way to diagnose it. JupyterLab therefore always generates a second, clearly-labelled kernel backed by the image's own interpreter, and `MultiKernelManager.default_kernel_name` makes the course kernel *preferred* rather than merely present.
+The runtime contract is deliberately smaller than either manager: a resolved prefix must contain the interpreter required by the app. `lc_classify_course_env` receives that interpreter as an argument rather than assuming Python in shared code. The current apps request `bin/python`; another app could request `bin/R` without changing the launcher library.
 
-Kernel names describe the **course**, not our implementation, and `write_kernel` in `ood/jupyterlab-ai/template/jupyterlab.script.sh` holds the exact strings. One part must survive any rewording: **"no course packages"**. That phrase is the entire control that prevents a student from quietly using a kernel with none of their course's libraries.
+JupyterLab always registers an image-owned kernel labelled **"System Default — no course packages"**. When `default/bin/python` runs and imports `ipykernel`, JupyterLab also registers the course kernel and makes it the default for new notebooks. A usable `staging` prefix adds a separate staging kernel but never replaces the course default. Code-server uses the same `default/bin/python` when it runs successfully, writes it to `python.defaultInterpreterPath`, and prepends the prefix's `bin` directory to terminal `PATH`; it does not require `ipykernel`.
+
+An absent, non-executable, or unusable course interpreter degrades the session rather than preventing it from starting. JupyterLab falls back to the image kernel, and code-server omits the course interpreter configuration. The usability probe runs inside the container because the compute node and image can have different runtime libraries. An environment root or `default` path that escapes the course folder is different: it is a containment failure and remains fatal.
 
 ### Sub-apps and access control
 
