@@ -65,17 +65,23 @@ Node-local copies do not fit the expected concurrency profile: many sessions can
 
 The launcher therefore **selects** between a fast root and a canonical root. It never copies between them. Loss of the fast copy degrades start latency rather than making the image unavailable.
 
-### Why a deploy refuses to run twice
+### Images are immutable, verifiable release artifacts
 
-`deploy-image.sh` publishes one built artifact and its two sidecars to both image roots. Nearly every rule in it follows from one fact: **a deployed name is permanent.** A committed `imagefile:` string identifies one exact build for as long as a sub-app names it. That holds only while the name is never reused.
+A published image name permanently identifies one exact build. The name carries a timestamp and commit, and the bytes it identifies are never overwritten or reused. A new build receives a new name; selecting an older name is a rollback.
 
-So the script is deliberately **not** idempotent, and its header says so. It checks both roots before it writes either one, so a half-refused deploy is not a state it can leave behind. If any of the three files is already present, it refuses the whole deploy, including a completed deploy that you run again. The rest of its rules follow:
+Each build produces a three-file release set:
 
-- **The canonical root is written first**, because it is the copy the launcher requires. A fast copy that arrives late puts every session on the size-mismatch fallback path. A failure at the fast root exits nonzero, but says plainly that the canonical deploy is complete. That is a slow session rather than no session.
-- **The source checksum is checked before the first copy**, because the canonical root is the one root the launcher does not check for integrity. A bad file written there burns that name permanently.
-- **The destination family comes from the metadata sidecar**, never from the artifact name, which carries a timestamp and a commit rather than a family. Requiring both sidecars also means that only `build-image.sh` output is publishable.
-- **Modes are set explicitly**, on the files and on the family directory that a first deploy creates, rather than left to the deploying account's umask. Under `umask 077` that directory is `0700`, students cannot traverse it, and an image no student can read fails every session in the course silently, long after the deploy looked successful.
-- **A sub-app's `imagefile:` line is printed, not set.** Putting a new image in front of students is a reviewed change. A file copy is not.
+- The SIF is the runnable image.
+- Its checksum sidecar establishes the image's content identity.
+- Its metadata sidecar records provenance, architecture, pins, app, and image family.
+
+The three files belong together. Both sidecars are required for publication, which means only `build-image.sh` output is publishable. The metadata supplies the destination family rather than leaving deployment tooling to infer it from the artifact name.
+
+Each release is published to two roots with different roles. The canonical root is required and authoritative; the fast root is an acceleration copy. The canonical root is written first, so failure at the fast root degrades start performance rather than making the image unavailable.
+
+Publication and activation are separate. Publishing makes an image available to the launcher. A reviewed change to a sub-app's `imagefile:` selects the image students receive, so publishing bytes never changes a live sub-app by itself.
+
+`deploy-image.sh` enforces these rules: it requires both sidecars, verifies the source and each copy, refuses existing names in either root, derives the family from metadata, sets readable modes, writes the canonical root first, and prints rather than edits the `imagefile:` value.
 
 ### Course environments are external interpreter prefixes
 
