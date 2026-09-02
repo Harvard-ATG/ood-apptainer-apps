@@ -57,7 +57,7 @@ Configuration lives at the **default** locations `~/.claude` and `~/.codex`. Too
 
 Containment is unaffected because the managed file was always defence in depth. One question remains: Claude Code still starts a bwrap sandbox on its first Bash tool call, but whether the client default or remote policy enables it is unknown. The answer determines whether the image's `denyRead` list can take effect.
 
-### The workaround: the process environment outranks everything
+### Environment variables, not the managed file, enforce these settings
 
 Because the managed file is not reliable here, **the launcher also exports anything that must hold**. Process environment variables outrank the managed-setting sources, so the duplication is deliberate.
 
