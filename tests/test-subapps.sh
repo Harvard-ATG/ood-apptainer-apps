@@ -105,8 +105,8 @@ done
 NO_IMAGE="jupyter-codeserver-ai/NO-DEPLOYED-IMAGE-FOUND.sif"
 
 DEV_SUBAPPS=(
-    "../ood/jupyterlab-ai/local/dev.yml.erb|Jupyter Lab - AI DEV|jupyterlab"
-    "../ood/codeserver-ai/local/dev.yml.erb|Code Server - AI DEV|codeserver"
+    "../ood/jupyterlab-ai/local/dev.yml.erb|Jupyter Lab - AI ADMIN|jupyterlab"
+    "../ood/codeserver-ai/local/dev.yml.erb|Code Server - AI ADMIN|codeserver"
 )
 
 for row in "${DEV_SUBAPPS[@]}"; do
@@ -227,9 +227,10 @@ done
 
 # The dashboard also lists Jupyter Lab and Code Server apps that are neither
 # Apptainer-based nor from this repository. A course sub-app needs no marker
-# because its course label is already unique, but "<App> - DEV" would collide
-# with any sandbox of theirs, and two identically titled tiles is exactly the
-# confusion an administrator sandbox must not create.
+# because its course label is already unique, but a bare "<App> - ADMIN" or
+# "- DEV" would collide with any sandbox of theirs, and two identically
+# titled tiles is exactly the confusion an administrator sandbox must not
+# create.
 #
 # Read from the RENDERED file, not from the table above: asserting the table's
 # own value against itself would pass whatever the sub-app actually says.
@@ -240,8 +241,8 @@ for row in "${DEV_SUBAPPS[@]}"; do
     it "$label: the rendered title carries the AI family marker"
     rendered_title=$(json_eval "$(render_form "$ADMIN_GROUP" "$path")" 'd["title"]')
     case "$rendered_title" in
-        *" - AI DEV") _pass ;;
-        *) _fail "title \"$rendered_title\" does not end with \"- AI DEV\"" ;;
+        *" - AI ADMIN") _pass ;;
+        *) _fail "title \"$rendered_title\" does not end with \"- AI ADMIN\"" ;;
     esac
 
     it "$label: course_label is what the title ends with, so render-forms.sh agrees"

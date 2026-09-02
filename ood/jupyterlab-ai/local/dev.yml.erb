@@ -130,7 +130,7 @@ imageOptionsYaml = options_yaml(imageOptions.map { |o| [File.basename(o), o] })
 -%>
 ---
 cluster: "<%= cluster %>"
-title: "Jupyter Lab - AI DEV"
+title: "Jupyter Lab - AI ADMIN"
 cacheable: false
 description: |
   ADMINISTRATOR SANDBOX for the Apptainer AI app family. Not a course, and
@@ -201,11 +201,18 @@ attributes:
 
   # The label the title must end with -- render-forms.sh cross-checks the two.
   #
-  # "AI" is doing real work here. The dashboard also lists Jupyter Lab and
-  # Code Server apps that are neither Apptainer-based nor from this
-  # repository, and "<App> - DEV" would collide with any sandbox of theirs. A
-  # course sub-app needs no such marker: its course label is already unique.
-  course_label: "AI DEV"
+  # Both words earn their place. "AI" is what disambiguates: the dashboard
+  # also lists Jupyter Lab and Code Server apps that are neither
+  # Apptainer-based nor from this repository, and a bare "<App> - ADMIN" or
+  # "- DEV" would collide with any sandbox of theirs. "ADMIN" names the
+  # audience, which is redundant to the only people who can see the tile and
+  # is exactly what a student needs to read if the enabledGroups guard above
+  # is ever broken. A course sub-app needs neither: its label is unique.
+  #
+  # Kept free of parentheses on purpose. This value is threaded into the
+  # Jupyter kernel names, so a label like "ADMIN (AI Dev)" would read as
+  # "Python 3 (ADMIN (AI Dev))" in the launcher.
+  course_label: "AI ADMIN"
 
   # The course shared folder, bound into the container. It is also the
   # containment root: environment_root, and everything resolved beneath it,
