@@ -14,7 +14,7 @@ Code-server workspace trust is disabled, because the Claude Code extension does 
 
 ## The agents' own sandboxes, and the flags that keep them working
 
-Both CLIs sandbox their own filesystem access with bubblewrap, *inside* our container. That is a second, independent sandbox nested in ours. Two unrelated Apptainer flags make it work; neither is a containment control. Codex bundles its own bwrap binary, while Claude Code uses the image's `/usr/bin/bwrap`, so their failures differ.
+Both CLIs sandbox their own filesystem access with bubblewrap, *inside* our container. That is a second, independent sandbox nested in ours. Two unrelated Apptainer flags make it work. Neither is a containment control. Codex bundles its own bwrap binary, while Claude Code uses the image's `/usr/bin/bwrap`, so their failures differ.
 
 **`--underlay`.** Apptainer's default overlay leaves the container root unbindable, and that property survives into the namespace bubblewrap makes for itself. bwrap's first move is to bind the old root onto the new one, the kernel refuses a bind whose source is unbindable, and it dies:
 
@@ -26,7 +26,7 @@ bwrap: Can't bind mount /oldroot/ on /newroot/: Invalid argument
 
 **`-B /dev/full:/dev/full`.** This repairs what `--containall` removes. Codex's workspace-write sandbox binds `/dev/full` while it assembles itself, and bwrap cannot bind a source that does not exist.
 
-**The two are not alternatives.** Without `--underlay`, bwrap dies before it reaches `/dev`. A minimal bwrap probe also misses the `/dev/full` requirement; only the complete Codex sandbox exercises it.
+**The two are not alternatives.** Without `--underlay`, bwrap dies before it reaches `/dev`. A minimal bwrap probe also misses the `/dev/full` requirement. Only the complete Codex sandbox exercises it.
 
 ### How the two agents fail differently
 
@@ -53,15 +53,13 @@ Both CLIs are installed system-wide at versions pinned in `versions.env`, and st
 
 Configuration lives at the **default** locations `~/.claude` and `~/.codex`. Tools and extensions can therefore find it by convention, and the host and container agree on its location.
 
-**The Claude governance file is not enforced in the current managed-account configuration.** Claude Code selects managed settings first-wins, and the higher-priority remote policy causes `/etc/claude-code/managed-settings.json` to be skipped in its entirety. Treat that file as a statement of intent, not as a mitigation. `DISABLE_AUTOUPDATER` remains effective because the launcher also sets it as a process environment variable and the image is read-only.
+**The Claude governance file is not enforced in the current managed-account configuration**. Claude Code selects managed settings first-wins, and the higher-priority remote policy causes `/etc/claude-code/managed-settings.json` to be skipped in its entirety. Treat that file as a statement of intent, not as a mitigation. `DISABLE_AUTOUPDATER` remains effective because the launcher also sets it as a process environment variable and the image is read-only.
 
 Containment is unaffected because the managed file was always defence in depth. One question remains: Claude Code still starts a bwrap sandbox on its first Bash tool call, but whether the client default or remote policy enables it is unknown. The answer determines whether the image's `denyRead` list can take effect.
 
-### Environment variables, not the managed file, enforce these settings
+### CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL stops a doomed extension upgrade
 
-Because the managed file is not reliable here, **the launcher also exports anything that must hold**. Process environment variables outrank the managed-setting sources, so the duplication is deliberate.
-
-The Claude Code CLI tries to upgrade its code-server extension whenever the installed extension sorts semver-lower than the CLI. That cannot succeed because `--extensions-dir` is image-owned and read-only.
+Whenever the installed extension sorts semver-lower than the CLI, the Claude Code CLI tries to upgrade its code-server extension. That cannot succeed because `--extensions-dir` is image-owned and read-only.
 
 `CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL=1` suppresses that upgrade attempt. Two consequences follow:
 
