@@ -19,8 +19,6 @@ sub-app (ours, per course)     →  who can launch, which image, which folder, w
 launcher (ours, two halves)    →  host side decides and checks. container side execs the server
 ```
 
-The current apps bundle the Claude Code and Codex CLIs, which is a fact about that app family and not about the platform. [`docs/design-ai-family.md`](design-ai-family.md) covers what follows from it.
-
 One division explains the most: **the image owns everything the server process imports. The course environment owns everything a notebook imports.** That is why JupyterLab is not in the course environment, and why `ipykernel` is not in the image. Kernel-side packages belong to staff, so staff self-serve. A Jupyter or code-server extension still needs a rebuild from us.
 
 ### Why two images and no shared base
@@ -28,42 +26,6 @@ One division explains the most: **the image owns everything the server process i
 Each app derives from the upstream base that fits it. Jupyter Docker Stacks serves one, Ubuntu the other. A shared base buys nothing at rest, because SIF is a flat SquashFS with no layer sharing. It also costs an extra build artifact to keep in step.
 
 What the choice gives up is any guarantee that two images agree. When two apps must agree on something, a test has to say so, and [the AI family doc](design-ai-family.md#why-the-two-images-run-one-recipe) holds today's instance.
-
-### Why the launcher is split in two
-
-`template/script.sh.erb` runs on the compute node as the student. It resolves and checks paths, decides which image root to use, writes a mode-`0600` environment file, and starts Apptainer. `template/<app>.script.sh` runs *inside* the container and `exec`s the server.
-
-The two halves answer different questions. Path containment must be decided outside the container, before any namespace exists, and that is where the kernel enforces the enrolled-group gate. Only the inside can answer whether an interpreter *runs*, because the compute node and the image do not share a libc. A probe that succeeds on the host can fail in the image.
-
-`exec` in the inner script is required. The server becomes the container's first process, so `scancel` and walltime expiry reach it directly instead of waiting for the job to be killed. The outer script is deliberately **not** `exec`'d, because OOD records its pid as `SCRIPT_PID` and reaps with `pkill -P`.
-
-Both inner scripts `exec` an **absolute, image-owned path**. A bare command name resolves through a `PATH` whose first element is a staff-writable directory on a shared filesystem. Anyone who can write the course environment can then replace the server every student runs, silently. That was a real defect on the code-server side.
-
-### Containment: what it protects and what it does not
-
-Host-level containment is the security boundary. Apptainer runs unprivileged in the target deployment, so mounts go through FUSE. The launcher runs Apptainer behind `env -i`, with `--containall --cleanenv` and an explicit `--no-mount` list. The bind set is fixed:
-
-- The student's real home.
-- The one course folder.
-- Their scratch root.
-- Job-local state at `/state`, and job-local `/tmp`.
-- An empty directory that masks `~/.ssh`.
-
-Two further flags in the same launch line are not containment controls at all: `--underlay` and `-B /dev/full:/dev/full`, which [the AI family doc](design-ai-family.md#the-agents-own-sandboxes-and-the-flags-that-keep-them-working) explains. They are unconditional in `lc_run`, so **every** app that vendors the shared library carries them, including one that has no use for either.
-
-This design **explicitly accepts** two things: the real home is mounted read-write, and outbound HTTPS is unrestricted. A session can read, write and transmit anything the student can reach, because it runs as the student.
-
-Masking `~/.ssh` reduces accidental reuse of existing keys. It does not prevent SSH egress, because a student can generate a new key. The control that keeps the container from becoming a cluster-management interface is the absence of Slurm and Munge inside it.
-
-One rule follows from the namespace: **never gate behaviour on group membership inside the container.** A user namespace's GID map means `id -G` reports the primary GID plus `65534`. The group has no name there. The kernel still holds the real supplementary GIDs, so *access* works. Ask the kernel whether an operation is permitted (`[ -w "$ENVIRONMENT_ROOT" ]`), never whether a name is in a list.
-
-### Why images use two shared storage roots
-
-Apptainer mounts a SIF through `squashfuse_ll`, which has a **hardcoded ten-second mount timeout** that no Apptainer or environment variable governs. A multi-gigabyte SIF read from EFS under load can exceed it. Raising OOD's readiness budget does not change that mount timeout, so the launcher prefers a copy on Lustre and falls back to the authoritative copy on EFS.
-
-Node-local copies do not fit the expected concurrency profile: many sessions can mount the same multi-gigabyte image on one node, while local temporary storage is limited and shared with the jobs themselves. Copying during launch would also turn a cache miss into many simultaneous copies.
-
-The launcher therefore **selects** between a fast root and a canonical root. It never copies between them. Loss of the fast copy degrades start latency rather than making the image unavailable.
 
 ### Images are immutable, verifiable release artifacts
 
@@ -82,6 +44,14 @@ Each release is published to two roots with different roles. The canonical root 
 Publication and activation are separate. Publishing makes an image available to the launcher. A reviewed change to a sub-app's `imagefile:` selects the image students receive, so publishing bytes never changes a live sub-app by itself.
 
 `deploy-image.sh` enforces these rules: it requires both sidecars, verifies the source and each copy, refuses existing names in either root, derives the family from metadata, sets readable modes, writes the canonical root first, and prints rather than edits the `imagefile:` value.
+
+### Why images use two shared storage roots
+
+Apptainer mounts a SIF through `squashfuse_ll`, which has a **hardcoded ten-second mount timeout** that no Apptainer environment variable governs. A multi-gigabyte SIF read from EFS under load can exceed it. Raising OOD's readiness budget does not change that mount timeout, so the launcher prefers a copy on Lustre and falls back to the authoritative copy on EFS.
+
+Node-local copies do not fit the expected concurrency profile: many sessions can mount the same multi-gigabyte image on one node, while local temporary storage is limited and shared with the jobs themselves. Copying during launch would also turn a cache miss into many simultaneous copies.
+
+The launcher therefore **selects** between a fast root and a canonical root. It never copies between them. Loss of the fast copy degrades start latency rather than making the image unavailable.
 
 ### Course environments are external interpreter prefixes
 
@@ -120,21 +90,6 @@ Every value a template or `submit.yml.erb` reads must appear in the sub-app's `f
 
 Server-side resource checks **reject** rather than clamp, because widget `min`/`max` are user-interface guidance and a hand-posted form arrives with anything. `--mem-per-cpu` must carry its unit, because Slurm reads a bare `4` as four megabytes. It is never multiplied by the CPU count.
 
-### Non-obvious Apptainer behaviour
-
-**The environment file is evaluated, not parsed.** Apptainer treats `--env-file` as a shell-ish script rather than plain `key=value` lines. An unquoted value containing a space is parsed as a command and aborts the launch outright:
-
-```
-COURSE_LABEL=Example Course
-FATAL: while evaluating environment script: could not execute "Course"
-```
-
-`lc_write_env_file` therefore quotes and escapes values, and rejects `$` and newlines. An unexpanded `$` in an environment file is always a bug, because nothing expands it. Secrets never appear in `apptainer exec --env` arguments, because other users can see command lines through `/proc`. Only the path to the mode-`0600` file appears there.
-
-**The container prompt is set twice.** Apptainer injects both `PS1="Apptainer> "` and `PROMPT_COMMAND='PS1="Apptainer> "; unset PROMPT_COMMAND'`. The second one is what students saw. bash *does* read `/etc/bash.bashrc` and set a normal prompt. It then runs `PROMPT_COMMAND` before it draws the first prompt, which overwrites that prompt and unsets itself, leaving no trace. `PS1` alone matters only for shells that read no rc files, such as dash. Both are unset before the server starts. The terminal shell is pinned to bash rather than inherited, because `jupyter_server_terminals` falls back to `which("sh")` when `SHELL` is unset.
-
-**The build needs Apptainer's own bindir on `PATH`.** `apptainer build --fakeroot` shells out to `mksquashfs`, which lives beside the `apptainer` binary in the Spack view. Resolving that binary inside a command substitution keeps the activated environment away from the build itself. `mksquashfs` was then not findable, and the build failed on a compute node. `build-image.sh` prepends that one directory, for the build command alone.
-
 ### Deployment consequences of the symlink model
 
 The parent apps are nested one level inside the repository, so the repository cannot be cloned into OOD's system-app directory directly. OOD scans `/var/www/ood/apps/sys/*` one level deep for a `manifest.yml`, and a monorepo presents none at that level. Each parent app is symlinked instead. Three consequences follow:
@@ -143,18 +98,39 @@ The parent apps are nested one level inside the repository, so the repository ca
 2. **Repository updates must preserve those permissions.** Git does not preserve general read permissions, so deployment tooling or procedure must verify that every required path remains readable and traversable.
 3. **Updating the clone updates every symlinked app.** Deploy only reviewed revisions; a partial or in-progress repository state affects all apps at once.
 
+### Why the launcher is split in two
+
+`template/script.sh.erb` runs on the compute node as the student. It resolves and checks paths, decides which image root to use, writes a mode-`0600` environment file, and starts Apptainer. `template/<app>.script.sh` runs *inside* the container and `exec`s the server.
+
+The two halves answer different questions. Path containment must be decided outside the container, before any namespace exists, and that is where the kernel enforces the enrolled-group gate. Only the inside can answer whether an interpreter *runs*, because the compute node and the image do not share a libc. A probe that succeeds on the host can fail in the image.
+
+`exec` in the inner script is required. The server becomes the container's first process, so `scancel` and walltime expiry reach it directly instead of waiting for the job to be killed. The outer script is deliberately **not** `exec`'d, because OOD records its pid as `SCRIPT_PID` and reaps with `pkill -P`.
+
+Both inner scripts `exec` an **absolute, image-owned path**. A bare command name resolves through a `PATH` whose first element is a staff-writable directory on a shared filesystem. Anyone who can write the course environment could otherwise replace the server every student runs.
+
+The environment file also crosses this boundary. Apptainer evaluates `--env-file` as a shell script rather than parsing plain `key=value` lines, so `lc_write_env_file` quotes and escapes values and rejects `$` and newlines. Secrets never appear in `apptainer exec --env` arguments, where other users could read them through `/proc`; only the path to the mode-`0600` file appears there.
+
+### Containment: what it protects and what it does not
+
+Host-level containment is the security boundary. Apptainer runs unprivileged in the target deployment, so mounts go through FUSE. The launcher runs Apptainer behind `env -i`, with `--containall --cleanenv` and an explicit `--no-mount` list. The bind set is fixed:
+
+- The student's real home.
+- The one course folder.
+- Their scratch root.
+- Job-local state at `/state`, and job-local `/tmp`.
+- An empty directory that masks `~/.ssh`.
+
+Two further flags in the same launch line are not containment controls at all: `--underlay` and `-B /dev/full:/dev/full`, which [the AI family doc](design-ai-family.md#the-agents-own-sandboxes-and-the-flags-that-keep-them-working) explains. They are unconditional in `lc_run`, so **every** app that vendors the shared library carries them, including one that has no use for either.
+
+This design **explicitly accepts** two things: the real home is mounted read-write, and outbound HTTPS is unrestricted. A session can read, write and transmit anything the student can reach, because it runs as the student.
+
+Masking `~/.ssh` reduces accidental reuse of existing keys. It does not prevent SSH egress, because a student can generate a new key. The control that keeps the container from becoming a cluster-management interface is the absence of Slurm and Munge inside it.
+
+One rule follows from the namespace: **never gate behaviour on group membership inside the container.** A user namespace's GID map means `id -G` reports the primary GID plus `65534`. The group has no name there. The kernel still holds the real supplementary GIDs, so *access* works. Ask the kernel whether an operation is permitted (`[ -w "$ENVIRONMENT_ROOT" ]`), never whether a name is in a list.
+
 ---
 
-## Compatibility risks
-
-These unresolved dependencies can change the guarantees described above:
-
-| Risk | Where it is explained |
-|---|---|
-| **`--underlay` is deprecated and will be removed**, and no replacement flag is identified | [Known expiry](design-ai-family.md#known-expiry-the---underlay-flag) |
-| **What engages Claude Code's sandbox here is unknown**, and the answer decides whether our `denyRead` list can ever take effect | [The AI agents](design-ai-family.md#the-ai-agents-what-is-enforced-and-what-is-not) |
-
-## What is deliberately not built
+## Scope boundaries
 
 A future `jupyter-stacks` family. A registry, triggered or automated builds, or pull-based deployment. Cluster-side QOS and concurrency policy. Automated OAuth sign-in tests. Outbound network filtering. Any attempt to stop students running arbitrary code in their own writable directories.
 
