@@ -52,7 +52,7 @@ The launcher is split in two halves: the host-side half validates paths and deci
 │       ├── jupyterlab/         Apptainer definition, from the Jupyter Docker Stacks base
 │       └── codeserver/         Apptainer definition, from an Ubuntu base
 ├── envs/<course>/              initial course environment specification
-├── docs/                       building images, and maintaining course environments
+├── docs/                       design rationale, building images, course environments
 ├── ood/
 │   ├── lib/launch-common.sh    canonical shared launch logic — EDIT HERE
 │   ├── jupyterlab-ai/          parent app (form.yml, manifest.yml, submit.yml.erb, …)
