@@ -114,6 +114,29 @@ The environment file also crosses this boundary. Apptainer evaluates `--env-file
 
 Host-level containment is the security boundary. Apptainer runs unprivileged in the target deployment, so mounts go through FUSE. The launcher runs Apptainer behind `env -i`, with `--containall --cleanenv` and an explicit `--no-mount` list. The bind set is fixed:
 
+```mermaid
+flowchart LR
+    E["EFS /shared<br>real home, course folder, canonical image"]
+    U["Lustre /scratch<br>scratch root, job state and tmp, image copy"]
+
+    subgraph NODE["Compute node — Slurm job"]
+
+        L["Host launcher"]
+        subgraph C["Apptainer container — student UID"]
+            direction TB
+            S["JupyterLab or code-server"]
+        end
+
+        L -->|"starts Apptainer"| C
+    end
+
+    E -->|"bind"| C
+    U -->|"bind"| C
+    S -->|"HTTPS allowed"| N["External network"]
+
+    style NODE fill:transparent,stroke-width:1px,stroke-dasharray:5 5
+```
+
 - The student's real home.
 - The one course folder.
 - Their scratch root.
