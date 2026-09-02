@@ -15,3 +15,6 @@ tests/.cache/
 # Local image build output. Artifacts are immutable and belong on the
 # cluster image roots, never in git.
 /build/
+
+# macOS Finder metadata.
+.DS_Store
