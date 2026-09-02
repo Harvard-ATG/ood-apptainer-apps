@@ -16,8 +16,8 @@ status=$?
 # shellcheck disable=SC2015  # not if/then/else, but _pass and _fail can't fail
 [ "$status" -eq 0 ] && _pass || _fail "$out"
 
-it "it checked all four sub-apps"
-assert_contains "$out" "4 sub-app"
+it "it checked all six sub-apps"
+assert_contains "$out" "6 sub-app"
 
 # Each negative case is a real regression this family has shipped.
 broken_file() {  # <path under the repo copy> <sed expression>
@@ -35,7 +35,7 @@ it "the gate's access-control checks reach EVERY sub-app, not just the one every
 # Replaces a vacuous `assert_contains "$out" "am115"` that ran under this
 # name: the literal am115 appears in render-forms.sh's own "checking ..."
 # progress line, printed before any check runs, so it passed even with am115
-# denying every enrolled student. Line 20's "4 sub-app" already covers
+# denying every enrolled student. Line 20's "6 sub-app" already covers
 # discovery; what was actually uncovered is whether the checks APPLY to a
 # sub-app no other negative case touches. This mutates a different course
 # AND a different app directory, and swaps only the enabledGroups entry --
@@ -87,7 +87,7 @@ assert_eq "$([ "$optout_status" -eq 0 ] && echo zero || echo nonzero)" "zero"
 it "...and the gate still checked every sub-app"
 # Not vacuous: a gate that crashed before checking anything would also
 # produce no findings.
-assert_contains "$optout" "4 sub-app"
+assert_contains "$optout" "6 sub-app"
 
 it "trailing whitespace after a YAML scalar fails"
 assert_contains "$(broken trailing 's/^  course: "170681"/  course: "170681"  /')" "trailing whitespace"

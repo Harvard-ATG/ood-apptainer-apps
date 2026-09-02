@@ -10,6 +10,22 @@ require 'erb'
 require 'yaml'
 require 'json'
 
+# OOD hands a template the value a user SUBMITTED, never the widget
+# declaration. An attribute written as a widget hash therefore arrives as a
+# plain string: its value: entry, or -- for a select that declares no value: --
+# the first option, which is what the form pre-selects. An option is either a
+# bare string (label and value are the same) or a [label, value, ...] array.
+#
+# Without this, a template reading an attribute declared as a widget renders
+# the Ruby Hash itself into the launch script, and nothing errors.
+def submitted_value(raw)
+  return raw unless raw.is_a?(Hash)
+  return raw['value'] if raw.key?('value')
+
+  first = (raw['options'] || []).first
+  first.is_a?(Array) ? first[1] : first
+end
+
 module OodSupport
   Group = Struct.new(:id, :name)
 
@@ -34,7 +50,7 @@ end
 class FormContext
   def initialize(attributes, form)
     @values = {}
-    form.each { |k| @values[k.to_s] = attributes[k.to_s] }
+    form.each { |k| @values[k.to_s] = submitted_value(attributes[k.to_s]) }
     @declared_but_unlisted = attributes.keys.map(&:to_s) - @values.keys
   end
 
@@ -86,14 +102,12 @@ class String
   end
 end
 
-# OOD hands submit.yml.erb the form values as BARE LOCALS, not through context.
-# An attribute whose value is a widget hash arrives as its value: entry, and
-# every value arrives as a string, because it came back from an HTML form.
+# OOD hands submit.yml.erb the form values as BARE LOCALS, not through context,
+# and every value arrives as a string, because it came back from an HTML form.
 def submit_binding(doc)
   values = {}
   (doc['form'] || []).each do |key|
-    raw = (doc['attributes'] || {})[key.to_s]
-    raw = raw['value'] if raw.is_a?(Hash)
+    raw = submitted_value((doc['attributes'] || {})[key.to_s])
     values[key.to_s] = raw.nil? ? '' : raw.to_s
   end
   b = binding

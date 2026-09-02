@@ -1,0 +1,231 @@
+<%-
+# ADMINISTRATOR SANDBOX. Not a course.
+#
+# This sub-app exists so that an image can be launched and driven before any
+# course names it. Everything a course sub-app fixes at commit time -- the
+# image, the course folder, the environment root -- is a dropdown here, chosen
+# per launch.
+#
+# It is NOT a template for a course file. Copy examples/course.yml.erb for
+# that. A course sub-app pins one image by name so the git history answers
+# "which build did this course run", and that property is the whole reason
+# this file is separate rather than a mode of the course files.
+
+# Admin groups are matched by full group name.
+adminGroups = [
+  "ondemand-admins-1025174" # HUIT OOD admin group, prod environment
+]
+
+# ACCESS. Deliberately EMPTY, and it must stay empty. This is the only
+# difference that keeps this app off every student's dashboard: with no Canvas
+# ID here, the extraction below matches nobody and every non-administrator
+# falls through to disable_this_app. Adding an ID would publish a form whose
+# dropdowns mount other courses' folders to whoever it was added for.
+#
+# The dropdowns below are a CONVENIENCE, not a boundary. A hand-posted form
+# carries any value at all, exactly as submit.yml.erb says of its widget
+# min/max. What makes that acceptable here is this list being empty: the only
+# people who can reach the form are administrators, the job runs as the
+# submitting user's own uid, and a bind therefore grants nothing that user's
+# shell does not already grant. That reasoning stops holding the moment an ID
+# is added.
+enabledGroups = [
+]
+
+# Courses this sandbox can mount. One line per course, and the folder and the
+# environment root are BOTH derived from the Canvas ID, so the two dropdowns
+# below cannot drift apart. Add a line when a course joins the app family.
+devCourses = [
+  ["APMTH 115",     "172566"],
+  ["COMPSCI 1090A", "170681"],
+]
+
+def course_folder_for(id)
+  "/shared/courseSharedFolders/#{id}outer/#{id}"
+end
+
+imageFamily = "jupyter-codeserver-ai"
+# Shown when there is nothing to list: a denied user, or an unreadable image
+# root. It has to be relative and non-empty, because the release gate checks
+# both, and it must not name a real artifact, so that selecting it fails at
+# lc_select_image with "image not found at authoritative path" rather than
+# launching something unintended.
+imageNone = "#{imageFamily}/NO-DEPLOYED-IMAGE-FOUND.sif"
+
+# Built as one string and interpolated once, rather than looped inside the YAML
+# body. A loop there depends on ERB trim behaviour matching between this
+# harness and the dashboard, and a mismatch shows up as a YAML parse error on a
+# live form.
+def options_yaml(pairs, indent = "      ")
+  pairs.map { |label, value| "#{indent}- [#{label.inspect}, #{value.inspect}]" }.join("\n")
+end
+
+courseFolderOptionsYaml = options_yaml(
+  devCourses.map { |label, id| ["#{label} (#{id})", course_folder_for(id)] }
+)
+# "(none)" first, so the default launch mounts a course folder but configures
+# no course environment. That is the state a fresh image should be tested in:
+# no course interpreter, and no WARNING about one, because none was asked
+# for.
+environmentRootOptionsYaml = options_yaml(
+  [["(none) -- run on the image alone", ""]] +
+  devCourses.map { |label, id| ["#{label} (#{id})", "#{course_folder_for(id)}/envs"] }
+)
+
+def arrays_have_common_element(array1, array2)
+  !(array1 & array2).empty?
+end
+
+userGroups = OodSupport::User.new.groups.sort_by(&:id).map(&:name)
+if arrays_have_common_element(userGroups, adminGroups)
+  cluster="*"
+else
+  # Compare the EXTRACTED Canvas IDs, never the raw group names. Comparing the
+  # raw list is a defect this app family has shipped twice: it fails closed and
+  # silently, so the sub-app disappears for every enrolled student while
+  # continuing to work for administrators, who match on the other list.
+  #
+  # Kept here even though enabledGroups is empty. Deleting it would make this
+  # file structurally different from every other sub-app, so a later edit that
+  # populates enabledGroups would have nothing to fall into.
+  userCanvasGroups = userGroups.flat_map{ |str| str.scan(/^canvas(\d+)-\d+/) }.flatten
+  if arrays_have_common_element(userCanvasGroups, enabledGroups)
+    cluster="*"
+  else
+    cluster="disable_this_app"
+  end
+end
+
+# The deployed builds, listed ONLY for someone who can actually launch this.
+#
+# This runs in the ERB header of a live sub-app, and the dashboard renders that
+# header for EVERY user on EVERY page load -- cacheable: false is what makes
+# the per-user access decision above correct, and it also means nothing here is
+# memoized. An ungated Dir.glob would therefore put a readdir on the canonical
+# image root, which is the slower of the two filesystems, in the dashboard path
+# of every student in every course, for a dropdown none of them can reach.
+#
+# Non-administrators already resolved to disable_this_app, so they get the
+# placeholder: enough for the YAML below to stay well-formed, and no filesystem
+# access at all.
+#
+# For an administrator the list is read at render time rather than at commit
+# time, so a deploy shows up without a commit -- the point of the whole file.
+# Newest first: the artifact name carries a fixed-width UTC stamp, so a
+# descending sort of the names IS newest-first, and no symlink is needed to
+# mark which build is current. Dir.glob returns [] rather than raising when
+# the root is absent or unreadable, which is what leaves the placeholder in
+# place off-cluster and in the test harness.
+imageOptions = []
+if cluster == "*"
+  imageRoot = ENV.fetch("OOD_APPTAINER_IMAGE_ROOT_CANONICAL", "/shared/apptainerImages")
+  imageOptions =
+    Dir.glob("#{imageRoot}/#{imageFamily}/codeserver-*.sif")
+       .map { |p| "#{imageFamily}/#{File.basename(p)}" }
+       .sort
+       .reverse
+end
+imageOptions = [imageNone] if imageOptions.empty?
+
+imageOptionsYaml = options_yaml(imageOptions.map { |o| [File.basename(o), o] })
+-%>
+---
+cluster: "<%= cluster %>"
+title: "Code Server - AI DEV"
+cacheable: false
+description: |
+  ADMINISTRATOR SANDBOX for the Apptainer AI app family. Not a course, and
+  not visible to students.
+
+  Pick an image, a course folder to mount, and optionally a course environment.
+  Use this to drive a build before any course sub-app names it.
+
+  Sessions mount your real home directory and disable editor workspace trust.
+
+# Everything a template or submit.yml.erb reads must be listed here. OOD passes
+# ONLY form:-listed attributes into the template context; an attribute set below
+# but missing from this list renders as nothing, with no error.
+form:
+  - bc_num_hours
+  - bc_queue
+  - custom_num_cores
+  - cpu_min
+  - cpu_max
+  - hours_min
+  - hours_max
+  - mem_per_cpu
+  - imagefile
+  - course
+  - course_label
+  - course_folder
+  - environment_root
+
+attributes:
+  bc_num_hours:
+    label: "Number of hours"
+    value: 2
+    min: 1
+    max: 8
+    step: 1
+  bc_queue: "general"
+  custom_num_cores:
+    widget: "number_field"
+    label: "Number of CPUs"
+    value: 2
+    min: 1
+    max: 8
+    step: 1
+
+  # Server-side bounds. The widget values above are the user interface; these
+  # are what submit.yml.erb enforces. Keep the two in step.
+  cpu_min: "1"
+  cpu_max: "8"
+  hours_min: "1"
+  hours_max: "8"
+  mem_per_cpu: "4G"
+
+  # Every deployed build, newest first, re-read whenever an ADMINISTRATOR
+  # loads the dashboard. Everyone else gets the placeholder and no filesystem
+  # access at all -- see the gate in the header.
+  imagefile:
+    widget: "select"
+    label: "Image"
+    help: "Every build deployed to the canonical image root, newest first."
+    options:
+<%= imageOptionsYaml %>
+
+  # Empty, and it must stay empty. render-forms.sh derives the expected
+  # course_folder and environment_root from this value, and no single Canvas ID
+  # owns a sub-app whose folder is chosen at launch.
+  course: ""
+
+  # The label the title must end with -- render-forms.sh cross-checks the two.
+  #
+  # "AI" is doing real work here. The dashboard also lists Jupyter Lab and
+  # Code Server apps that are neither Apptainer-based nor from this
+  # repository, and "<App> - DEV" would collide with any sandbox of theirs. A
+  # course sub-app needs no such marker: its course label is already unique.
+  course_label: "AI DEV"
+
+  # The course shared folder, bound into the container. It is also the
+  # containment root: environment_root, and everything resolved beneath it,
+  # must stay inside this path, or the launch fails.
+  course_folder:
+    widget: "select"
+    label: "Course folder to mount"
+    options:
+<%= courseFolderOptionsYaml %>
+
+  # Optional per launch. Pick "(none)" to drive the image on its own: no
+  # python.defaultInterpreterPath, and no WARNING about a missing environment.
+  #
+  # Nothing here stops you pairing one course's folder with another course's
+  # environment root, and nothing needs to: lc_validate_under rejects an
+  # environment root that does not sit beneath the mounted course folder, so a
+  # mismatched pair fails the launch with a message naming both paths.
+  environment_root:
+    widget: "select"
+    label: "Course environment"
+    help: "Must belong to the course folder selected above; a mismatched pair fails the launch."
+    options:
+<%= environmentRootOptionsYaml %>

@@ -60,6 +60,24 @@ scripts/render-forms.sh
 
 Editing that line is the only thing that changes which image students launch. The deploy does not do it for you.
 
+## Driving a build before a course names it
+
+`ood/<app>/local/dev.yml.erb` is an administrator sandbox. It is a normal sub-app with one difference: its `enabledGroups` list is empty, so only the OOD admin group can see it. Everyone else gets `disable_this_app`.
+
+Its `imagefile`, `course_folder` and `environment_root` are dropdowns rather than fixed strings. That lets you launch a build, mount a real course folder, and drive the session before any course sub-app names the image. Nothing is committed to test a build.
+
+The image list is read from the canonical image root each time an administrator loads the dashboard. A deploy therefore appears in the dropdown at once, with no symlink to repoint and nothing to commit. The list is newest first, because the artifact name carries a fixed-width UTC stamp and a descending sort of those names is chronological.
+
+Everyone else gets a placeholder entry and no filesystem access at all. That gate matters. The dashboard renders every sub-app's header for every user on every page load. An ungated listing therefore puts a readdir on the slower filesystem in every student's dashboard.
+
+When the image root is unreadable, an administrator sees that same placeholder, `NO-DEPLOYED-IMAGE-FOUND.sif`. It names no real artifact, so selecting it fails at launch with "image not found at authoritative path" instead of starting something unintended.
+
+The course environment dropdown offers each course's `envs` prefix, and `(none)` first. `(none)` starts the session on the image alone, with no course kernel and no warning about one.
+
+**Never add a Canvas ID to a sandbox `enabledGroups` list.** The dropdowns are a convenience, not a boundary. A hand-posted form carries any value, exactly as `submit.yml.erb` says of its widget bounds. Two facts make that safe. Only administrators reach the form, and the job runs as the submitting user, so a mount grants nothing that user's own shell does not. One Canvas ID in that list ends both. `tests/test-subapps.sh` asserts the list is empty.
+
+A sandbox is not a course template. Copy `examples/course.yml.erb` for a course, so its image stays pinned by name and the git history answers which build the course ran.
+
 ## What the metadata records
 
 Read the `.metadata` sidecar to identify a deployed image without rebuilding it.

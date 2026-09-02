@@ -19,8 +19,16 @@ lc_log() {
     echo -e "[$(date -Iseconds)][${this_script:-launch-common}] $1" >&2
 }
 
+# -L is load-bearing, not tidiness. stat does NOT follow symlinks by default,
+# so on a symlink it reports the length of the target PATH STRING rather than
+# the size of the image. Nothing this repo ships puts a symlink in an image
+# root, but an administrator can, and artifact names are fixed-width: two
+# roots whose same-named symlinks point at completely different builds would
+# both report the same number. lc_select_image's size comparison is the only
+# thing standing between a stale Lustre copy and every session in a course,
+# and without -L it would silently agree that the two match.
 lc_file_size() {
-    stat -c '%s' "$1" 2>/dev/null || printf ''
+    stat -L -c '%s' "$1" 2>/dev/null || printf ''
 }
 
 # lc_select_image <imagefile relative to an image root>

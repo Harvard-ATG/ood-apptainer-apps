@@ -202,6 +202,36 @@ it "jupyterlab: that label reaches the container environment file"
 assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" \
     '"SYSTEM_DEFAULT_LABEL=${SYSTEM_DEFAULT_LABEL}"'
 
+# --- the administrator sandboxes, whose values are SELECTS ------------------
+#
+# Every other sub-app declares plain strings, so nothing above proves what a
+# template does with a widget. OOD hands the template the value a user
+# submitted; a harness that passed the widget declaration instead would render
+# the Ruby Hash itself into the launch script -- COURSE_FOLDER="{"widget"=>...}"
+# -- and neither ERB nor the release gate would say a word, because a Hash has
+# a perfectly good to_s.
+for app in $apps; do
+    dev="../ood/$app/local/dev.yml.erb"
+    [ -f "$dev" ] || continue
+    dev_body=$(FAKE_GROUPS='ondemand-admins-1025174' FAKE_STAGED_ROOT="$TMP/staged" \
+        ruby render.rb --template "../ood/$app/template/script.sh.erb" --form "$dev" 2>&1)
+
+    it "$app: the sandbox's selected course folder renders as a path, not a widget"
+    assert_contains "$dev_body" 'COURSE_FOLDER="/shared/courseSharedFolders/172566outer/172566"'
+
+    it "$app: no widget declaration leaks into the launch script"
+    assert_not_contains "$dev_body" "widget"
+
+    it "$app: the sandbox's selected image renders as a path, not a widget"
+    assert_contains "$dev_body" "IMAGE_FILE=\"jupyter-codeserver-ai/"
+
+    it "$app: the sandbox defaults to NO course environment"
+    # The first option of the environment_root select is the empty one, and
+    # the first option is what the form pre-selects. This is the assertion
+    # that a fresh image is driven with no course environment and no warning.
+    assert_contains "$dev_body" 'ENVIRONMENT_ROOT_RAW=""'
+done
+
 it "codeserver: does NOT write SYSTEM_DEFAULT_LABEL -- it has no kernel to name"
 # code-server shows no kernel list, so there is nothing for the label to name.
 # Threading it anyway would invite a course to set it there and see nothing

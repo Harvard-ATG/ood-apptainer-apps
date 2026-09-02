@@ -78,6 +78,30 @@ declare -A COURSE_APPS=()
 # Every app dir that contributed at least one sub-app with a course id.
 declare -a APP_DIRS=()
 
+# OOD hands a template the value a user SUBMITTED, never the widget
+# declaration. An attribute written as a widget hash therefore reaches the
+# launcher as a plain string: its value: entry, or -- for a select that
+# declares no value: -- the first option, which is what the form pre-selects.
+#
+# Reading the attribute raw makes jq stringify the whole object, so every
+# check below would compare against a literal {"widget":"select",...}. That
+# is not hypothetical: it is what the administrator sandboxes render, and it
+# only stayed invisible where the image root is unreadable and the check is
+# skipped. tests/render.rb applies the same rule, in submitted_value().
+JQ_SUBMITTED='
+  def submitted:
+    if type == "object" then
+      if has("value") then .value
+      elif ((.options? // []) | length) > 0 then
+        (.options[0] | if type == "array" then .[1] else . end)
+      else null end
+    else . end;
+'
+
+attr() {  # <rendered json> <attribute name>
+    jq -r --arg k "$2" "${JQ_SUBMITTED} (.attributes[\$k] | submitted) // empty" <<<"$1"
+}
+
 # Templates a course sub-app's context can break: any *.erb under the parent
 # app (excluding local/ and examples/) that reads context.<attribute>.
 # submit.yml.erb is deliberately excluded here -- it never uses `context.`,
@@ -102,10 +126,11 @@ check_subapp() {  # <path to a local/*.yml.erb sub-app>
     fi
 
     local course course_folder environment_root imagefile title cacheable cluster_none
-    course=$(jq -r '.attributes.course // empty' <<<"$base_json")
-    course_folder=$(jq -r '.attributes.course_folder // empty' <<<"$base_json")
-    environment_root=$(jq -r '.attributes.environment_root // empty' <<<"$base_json")
-    imagefile=$(jq -r '.attributes.imagefile // empty' <<<"$base_json")
+    local launch_imagefile=""
+    course=$(attr "$base_json" course)
+    course_folder=$(attr "$base_json" course_folder)
+    environment_root=$(attr "$base_json" environment_root)
+    imagefile=$(attr "$base_json" imagefile)
     title=$(jq -r '.title // empty' <<<"$base_json")
     # Not `// empty`: jq's alternative operator treats a JSON `false` as
     # falsy, which would turn the common-case value into an empty string.
@@ -125,8 +150,13 @@ check_subapp() {  # <path to a local/*.yml.erb sub-app>
     fi
 
     if [ -n "$course" ]; then
-        local cluster_own
-        cluster_own=$(FAKE_GROUPS="canvas${course}-1" ruby "$RENDER_RB" --form "$path" 2>/dev/null | jq -r '.cluster // empty')
+        # Kept, not discarded: check 7 validates the image an enrolled student
+        # actually launches, which is this rendering rather than the denied one
+        # above.
+        local cluster_own own_json
+        own_json=$(FAKE_GROUPS="canvas${course}-1" ruby "$RENDER_RB" --form "$path" 2>/dev/null)
+        cluster_own=$(jq -r '.cluster // empty' <<<"$own_json")
+        launch_imagefile=$(attr "$own_json" imagefile)
         if [ "$cluster_own" != '*' ]; then
             fail "$path" "access control failure: rendering with the course's own group (canvas${course}-1) yielded cluster=\"${cluster_own}\", expected \"*\""
         fi
@@ -205,12 +235,21 @@ check_subapp() {  # <path to a local/*.yml.erb sub-app>
     fi
 
     # 7. imagefile is relative, and exists under the image root when readable.
+    #
+    # SHAPE is checked on the base rendering, which every sub-app must satisfy.
+    # EXISTENCE is checked on a rendering by someone who can launch the sub-app,
+    # because that is the only rendering whose image anyone ever runs. A sub-app
+    # that builds its image list per user -- the administrator sandboxes --
+    # shows the denied user this gate impersonates a placeholder, and holding a
+    # placeholder to the image root would fail the release for a value nobody
+    # launches.
     case "$imagefile" in
         /*) fail "$path" "imagefile \"${imagefile}\" must be relative to the image root, not absolute" ;;
         "") fail "$path" "imagefile is missing" ;;
         *)
-            if [ -d "$IMAGE_ROOT" ] && [ -r "$IMAGE_ROOT" ] && [ ! -f "${IMAGE_ROOT}/${imagefile}" ]; then
-                fail "$path" "imagefile \"${imagefile}\" does not exist under ${IMAGE_ROOT}"
+            if [ -n "$launch_imagefile" ] && [ -d "$IMAGE_ROOT" ] && [ -r "$IMAGE_ROOT" ] \
+               && [ ! -f "${IMAGE_ROOT}/${launch_imagefile}" ]; then
+                fail "$path" "imagefile \"${launch_imagefile}\" does not exist under ${IMAGE_ROOT}"
             fi
             ;;
     esac
