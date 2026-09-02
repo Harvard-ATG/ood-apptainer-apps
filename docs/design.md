@@ -2,13 +2,7 @@
 
 This document explains the architecture, safety boundaries, and maintenance invariants for contributors. Site-specific deployment procedures and term operations are maintained separately. The two apps that bundle AI agents add a layer of their own, in [`docs/design-ai-family.md`](design-ai-family.md). Build and provisioning commands are in [`docs/images.md`](images.md) and [`docs/course-environments.md`](course-environments.md).
 
----
-
-## The shared architecture
-
-Everything here is true of any app in this repository, including one you add.
-
-### The components, and who owns each
+## The components, and who owns each
 
 The repository is a monorepo of Open OnDemand Batch Connect apps, and an app is any directory under `ood/` that holds a `manifest.yml`. Every app has the same four parts:
 
@@ -21,13 +15,13 @@ launcher (ours, two halves)    →  host side decides and checks. container side
 
 One division explains the most: **the image owns everything the server process imports. The course environment owns everything a notebook imports.** That is why JupyterLab is not in the course environment, and why `ipykernel` is not in the image. Kernel-side packages belong to staff, so staff self-serve. A Jupyter or code-server extension still needs a rebuild from us.
 
-### Why there is no shared base image
+## Apps share no base image
 
 Each app derives from whichever upstream base fits it. Today that means Jupyter Docker Stacks for JupyterLab and Ubuntu for code-server. A new app follows the same rule and picks its own. A shared base buys nothing at rest, because SIF is a flat SquashFS with no layer sharing. It also costs an extra build artifact to keep in step.
 
 What the choice gives up is any guarantee that images agree with each other. When apps must agree on something, a test has to say so, and [the AI family doc](design-ai-family.md#why-the-two-images-run-one-recipe) holds today's instance.
 
-### Images are immutable, verifiable release artifacts
+## Images are immutable, verifiable release artifacts
 
 A published image name permanently identifies one exact build. The name carries a timestamp and commit, and the bytes it identifies are never overwritten or reused. A new build receives a new name; selecting an older name is a rollback.
 
@@ -45,7 +39,7 @@ Publication and activation are separate. Publishing makes an image available to 
 
 `deploy-image.sh` enforces these rules: it requires both sidecars, verifies the source and each copy, refuses existing names in either root, derives the family from metadata, sets readable modes, writes the canonical root first, and prints rather than edits the `imagefile:` value.
 
-### Why images use two shared storage roots
+## Images use two shared storage roots
 
 Apptainer mounts a SIF through `squashfuse_ll`, which has a **hardcoded ten-second mount timeout** that no Apptainer environment variable governs. A multi-gigabyte SIF read from EFS under load can exceed it. Raising OOD's readiness budget does not change that mount timeout, so the launcher prefers a copy on Lustre and falls back to the authoritative copy on EFS.
 
@@ -53,7 +47,7 @@ Node-local copies do not fit the expected concurrency profile: many sessions can
 
 The launcher therefore **selects** between a fast root and a canonical root. It never copies between them. Loss of the fast copy degrades start latency rather than making the image unavailable.
 
-### Why apps must be symlinked into OOD
+## Apps must be symlinked into OOD
 
 For an app to go live, OOD must find it under [`/var/www/ood/apps/sys/`](https://osc.github.io/ood-documentation/latest/how-tos/app-development/app-sharing.html). OOD scans that directory one level deep for a `manifest.yml`. The parent apps are nested one level inside this repository, so the repository cannot be cloned there directly. Each parent app is symlinked instead, from a clone that lives elsewhere, such as `/opt/harvard-atg/ood-apptainer-apps`:
 
@@ -76,7 +70,7 @@ That last property is not incidental. OOD resolves the app symlink as the studen
 2. **Repository updates must preserve those permissions.** Git does not preserve general read permissions, so deployment tooling or procedure must verify that every required path remains readable and traversable.
 3. **Updating the clone updates every symlinked app.** Deploy only reviewed revisions; a partial or in-progress repository state affects all apps at once.
 
-### Course environments are external interpreter prefixes
+## Course environments are external interpreter prefixes
 
 The course interpreter and its packages are not baked into the image. Each course has an environment root under its shared folder, outside the repository and the SIF. This separates the shared server from course dependencies and lets teaching staff maintain packages without rebuilding the image.
 
@@ -99,7 +93,7 @@ JupyterLab always registers an image-owned kernel labelled **"System Default —
 
 An absent, non-executable, or unusable course interpreter degrades the session rather than preventing it from starting. JupyterLab falls back to the image kernel, and code-server omits the course interpreter configuration. The usability probe runs inside the container because the compute node and image can have different runtime libraries. An environment root or `default` path that escapes the course folder is different: it is a containment failure and remains fatal.
 
-### Sub-apps and access control
+## Sub-apps and access control
 
 Students only ever see gated sub-apps, so the name they read is the sub-app's `title:`. Files under `local/` are live, independent, and **do not inherit from each other**. That is why the copy source lives under `examples/`, where OOD does not publish it, and why a shared value must be updated in every live sub-app.
 
@@ -113,9 +107,16 @@ Every value a template or `submit.yml.erb` reads must appear in the sub-app's `f
 
 Server-side resource checks **reject** rather than clamp, because widget `min`/`max` are user-interface guidance and a hand-posted form arrives with anything. `--mem-per-cpu` must carry its unit, because Slurm reads a bare `4` as four megabytes. It is never multiplied by the CPU count.
 
-### Why the launcher is split in two
+## The launcher runs as two halves
 
 `template/script.sh.erb` runs on the compute node as the student. It resolves and checks paths, decides which image root to use, writes a mode-`0600` environment file, and starts Apptainer. `template/<app>.script.sh` runs *inside* the container and `exec`s the server.
+
+```text
+Compute node — Slurm job
+├── template/script.sh.erb          outside the container, as the student
+└── Apptainer container
+    └── template/<app>.script.sh    inside the container, execs the server
+```
 
 The two halves answer different questions. Path containment must be decided outside the container, before any namespace exists, and that is where the kernel enforces the enrolled-group gate. Only the inside can answer whether an interpreter *runs*, because the compute node and the image do not share a libc. A probe that succeeds on the host can fail in the image.
 
@@ -125,7 +126,7 @@ Both inner scripts `exec` an **absolute, image-owned path**. A bare command name
 
 The environment file also crosses this boundary. Apptainer evaluates `--env-file` as a shell script rather than parsing plain `key=value` lines, so `lc_write_env_file` quotes and escapes values and rejects `$` and newlines. Secrets never appear in `apptainer exec --env` arguments, where other users could read them through `/proc`; only the path to the mode-`0600` file appears there.
 
-### Containment: what it protects and what it does not
+## Containment: what it protects and what it does not
 
 ```mermaid
 flowchart LR
