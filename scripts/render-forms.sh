@@ -186,12 +186,21 @@ check_subapp() {  # <path to a local/*.yml.erb sub-app>
     fi
 
     # 6. course, course_folder and environment_root agree.
+    #
+    # environment_root is OPTIONAL: a course whose image already carries every
+    # package it needs declares none, and its sessions then start with no
+    # course kernel and no warning. Empty is therefore not a finding. A
+    # non-empty one must still name this course's own folder, which is the
+    # copy-pasted-another-course's-file defect this check exists to catch.
     if [ -n "$course" ]; then
         local expected_folder expected_env
         expected_folder="/shared/courseSharedFolders/${course}outer/${course}"
         expected_env="${expected_folder}/envs"
-        if [ "$course_folder" != "$expected_folder" ] || [ "$environment_root" != "$expected_env" ]; then
-            fail "$path" "course_folder/environment_root do not match the course folder layout expected for course \"${course}\" (expected course_folder=\"${expected_folder}\" environment_root=\"${expected_env}\", got course_folder=\"${course_folder}\" environment_root=\"${environment_root}\")"
+        if [ "$course_folder" != "$expected_folder" ]; then
+            fail "$path" "course_folder does not match the course folder layout expected for course \"${course}\" (expected course_folder=\"${expected_folder}\", got course_folder=\"${course_folder}\")"
+        fi
+        if [ -n "$environment_root" ] && [ "$environment_root" != "$expected_env" ]; then
+            fail "$path" "environment_root does not match the course folder layout expected for course \"${course}\" (expected environment_root=\"${expected_env}\" or an empty value, got environment_root=\"${environment_root}\")"
         fi
     fi
 

@@ -72,7 +72,9 @@ That last property is not incidental. OOD resolves the app symlink as the studen
 
 ## Course environments are external interpreter prefixes
 
-The course interpreter and its packages are not baked into the image. Each course has an environment root under its shared folder, outside the repository and the SIF. This separates the shared server from course dependencies and lets teaching staff maintain packages without rebuilding the image.
+The course interpreter and its packages are not baked into the image. A course can put an environment root under its shared folder, outside the repository and the SIF. This separates the shared server from course dependencies and lets teaching staff maintain packages without rebuilding the image.
+
+A course environment is opt-in. `environment_root` is an optional sub-app attribute. An empty value is a supported answer, not a missing one. It means the course image already carries every package the course needs. That state is not the same as an environment a course asked for and does not have. The launcher keeps the two apart, because they call for opposite responses.
 
 The environment root exposes two fixed names:
 
@@ -89,9 +91,9 @@ Provisioning supports micromamba and uv, but the manager is a construction detai
 
 The runtime contract is deliberately smaller than either manager: a resolved prefix must contain the interpreter required by the app. `lc_classify_course_env` receives that interpreter as an argument rather than assuming Python in shared code. The current apps request `bin/python`; another app could request `bin/R` without changing the launcher library.
 
-JupyterLab always registers an image-owned kernel labelled **"System Default — no course packages"**. When `default/bin/python` runs and imports `ipykernel`, JupyterLab also registers the course kernel and makes it the default for new notebooks. A usable `staging` prefix adds a separate staging kernel but never replaces the course default. Code-server uses the same `default/bin/python` when it runs successfully, writes it to `python.defaultInterpreterPath`, and prepends the prefix's `bin` directory to terminal `PATH`; it does not require `ipykernel`.
+JupyterLab always registers an image-owned kernel. Its display name comes from the optional `system_default_label` attribute, and defaults to `Python 3 (System Default)`. A course that expects a course environment names the degraded state instead. Both live courses use `Python 3 (System Default — no course packages)`, because a student who lands on that kernel has lost the course packages. A course that configures no environment root leaves the attribute empty, or names its own image. When `default/bin/python` runs and imports `ipykernel`, JupyterLab also registers the course kernel and makes it the default for new notebooks. A usable `staging` prefix adds a separate staging kernel but never replaces the course default. Code-server uses the same `default/bin/python` when it runs successfully, writes it to `python.defaultInterpreterPath`, and prepends the prefix's `bin` directory to terminal `PATH`. Code-server does not require `ipykernel`, and it shows no kernel list, so `system_default_label` does not apply to it.
 
-An absent, non-executable, or unusable course interpreter degrades the session rather than preventing it from starting. JupyterLab falls back to the image kernel, and code-server omits the course interpreter configuration. The usability probe runs inside the container because the compute node and image can have different runtime libraries. An environment root or `default` path that escapes the course folder is different: it is a containment failure and remains fatal.
+An absent, non-executable, or unusable course interpreter degrades the session rather than preventing it from starting. JupyterLab falls back to the image kernel, and code-server omits the course interpreter configuration. The session log warns, because the course asked for something it does not have. A course that configured no environment root takes the same path without the warning. Nothing is absent there, so there is nothing to warn about. The usability probe runs inside the container because the compute node and image can have different runtime libraries. An environment root or `default` path that escapes the course folder is different: it is a containment failure and remains fatal.
 
 ## Sub-apps and access control
 

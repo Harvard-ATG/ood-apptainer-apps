@@ -101,9 +101,19 @@ attributes:
   # enabledGroups above, so adding a cross-list access group can never silently
   # change which folder is mounted.
   course: "170681"
+
   # Student-facing course label. Threaded into the Jupyter kernel names so a
   # student sees which course an environment belongs to, and cross-checked
   # against this sub-app's title by scripts/render-forms.sh.
   course_label: "COMPSCI 1090A"
+
+  # The course shared folder, bound into the container. It is also the
+  # containment root: environment_root, and everything resolved beneath it,
+  # must stay inside this path, or the launch fails.
   course_folder: "/shared/courseSharedFolders/170681outer/170681"
+
+  # Course-shared interpreter prefixes, maintained by teaching staff outside
+  # this repo. Optional: leave it empty for a course whose image already
+  # carries every package it needs. The session then sets no course
+  # interpreter and logs no WARNING, because nothing is missing.
   environment_root: "/shared/courseSharedFolders/170681outer/170681/envs"

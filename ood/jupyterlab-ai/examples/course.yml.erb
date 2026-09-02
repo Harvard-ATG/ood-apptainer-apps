@@ -63,6 +63,7 @@ form:
   - course_label
   - course_folder
   - environment_root
+  - system_default_label
 
 attributes:
   bc_num_hours:
@@ -96,9 +97,45 @@ attributes:
   # enabledGroups above, so adding a cross-list access group can never silently
   # change which folder is mounted.
   course: "000000"
+
   # Student-facing course label, e.g. "APMTH 115". Threaded into the Jupyter
   # kernel names, and cross-checked against title: by render-forms.sh -- the
   # title must end with "- <course_label>".
   course_label: "CHANGE ME"
+
+  # The course shared folder, bound into the container. It is also the
+  # containment root: environment_root, and everything resolved beneath it,
+  # must stay inside this path, or the launch fails.
   course_folder: "/shared/courseSharedFolders/000000outer/000000"
+
+  # Course-shared interpreter prefixes, maintained by teaching staff outside
+  # this repo. OPTIONAL, and it is the one attribute here with two correct
+  # answers:
+  #
+  #   set  - the course wants packages it can update without an image
+  #          rebuild. Sessions register a course kernel from
+  #          <environment_root>/default, and WARN in the session log while
+  #          that prefix is absent or broken.
+  #   ""   - the course runs on its image alone. No course kernel, no warning,
+  #          nothing for staff to provision.
+  #
+  # Keep it at course_folder + "/envs" when it is set; render-forms.sh checks
+  # that, and the provisioning tooling derives the same path.
   environment_root: "/shared/courseSharedFolders/000000outer/000000/envs"
+
+  # Display name of the image-owned kernel, which every session registers
+  # whether or not a course environment exists. Optional; the default is
+  # "Python 3 (System Default)". A student reads this string in the launcher,
+  # so it has to be true for THIS course:
+  #
+  #   with environment_root set, name the degraded state, because a student
+  #   who lands on this kernel is in a session that lost its course packages:
+  #     system_default_label: "Python 3 (System Default — no course packages)"
+  #
+  #   with environment_root empty, name the image, because there is nothing
+  #   missing and the warning wording would describe a problem the course
+  #   does not have:
+  #     system_default_label: "Python 3 (SciPy Notebook)"
+  #
+  # Leave it empty for the neutral default.
+  system_default_label: ""

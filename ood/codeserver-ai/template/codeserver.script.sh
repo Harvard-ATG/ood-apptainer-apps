@@ -14,7 +14,9 @@ log() {
 }
 
 log "container HOME=${HOME}"
-log "course environment=${COURSE_ENV}"
+# Both halves, because a bare empty prefix cannot be told apart from a bug that
+# dropped the value: status says which of the two an empty prefix means.
+log "course environment status=${COURSE_ENV_STATUS:-missing} prefix=${COURSE_ENV:-none}"
 
 # ---------------------------------------------------------------------------
 # Terminal environment.
@@ -93,6 +95,13 @@ if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
     # image-owned path -- see the comment there. Skipped when degraded:
     # prepending a directory that does not work helps nobody.
     export PATH="${COURSE_ENV}/bin:${PATH}"
+elif [ "${COURSE_ENV_STATUS:-missing}" = not_configured ]; then
+    # NOT a warning. This course asked for no course-shared environment, so
+    # there is nothing absent and nothing for staff to repair. Logged all the
+    # same, because "why is python.defaultInterpreterPath unset" is the first
+    # question asked of any session log.
+    log "no course environment is configured; python.defaultInterpreterPath is not set and the"
+    log "terminal PATH is the image's own. This course runs on its image alone."
 else
     log "WARNING: no usable course environment (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
     log "WARNING: the session will START, but python.defaultInterpreterPath is NOT set, the"

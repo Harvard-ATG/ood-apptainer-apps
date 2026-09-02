@@ -32,6 +32,10 @@ attributes:
   course_label: "COMPSCI 1090A"
   course_folder: "/shared/courseSharedFolders/170681outer/170681"
   environment_root: "/shared/courseSharedFolders/170681outer/170681/envs"
+  # Deliberately NOT the production wording. An assertion that this value
+  # reached the container would pass against a hardcoded string if the two
+  # matched, which is the bug the attribute exists to remove.
+  system_default_label: "Python 3 (Fixture System Default)"
   unlisted_attr: "should-not-reach-context"
   bc_num_hours:
     value: 2
@@ -57,6 +61,7 @@ form:
   - course_label
   - course_folder
   - environment_root
+  - system_default_label
   - bc_num_hours
   - bc_queue
   - custom_num_cores

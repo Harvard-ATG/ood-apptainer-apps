@@ -676,6 +676,35 @@ cp "$BCE_REPO/ood/codeserver-ai/local/am115.yml.erb" "$BCE_REPO/ood/codeserver-a
 MISMATCH_OUT=$(build_course_env --course mismatched --canvas-id 172566 --image ok.sif)
 assert_contains "$MISMATCH_OUT" "disagrees"
 
+it "it refuses a course whose sub-apps declare NO environment_root, and says why"
+# environment_root is optional: a course whose image already carries every
+# package it needs declares none. Provisioning one anyway builds a prefix no
+# session ever reads, so this must fail -- but with its own message, not the
+# path-disagreement one, which would send staff hunting for a typo in two
+# paths that are not the problem.
+mkdir -p "$BCE_REPO/envs/noenv"
+cp envs/am115/manager \
+   envs/am115/python-version \
+   envs/am115/environment.yml \
+   "$BCE_REPO/envs/noenv/"
+for app in jupyterlab-ai codeserver-ai; do
+    sed 's#^  environment_root: ".*"$#  environment_root: ""#' \
+        "$BCE_REPO/ood/${app}/local/am115.yml.erb" \
+        > "$BCE_REPO/ood/${app}/local/noenv.yml.erb"
+done
+NOENV_OUT=$(build_course_env --course noenv --canvas-id 172566 --image ok.sif)
+assert_contains "$NOENV_OUT" "declares no environment_root"
+
+it "...and does not report it as a path disagreement"
+assert_not_contains "$NOENV_OUT" "disagrees"
+
+it "...and an explicit --environment-root provisions one anyway"
+# The documented escape hatch: an administrator who deliberately wants a
+# prefix for such a course names it, and the agreement check steps aside.
+NOENV_OVERRIDE_OUT=$(build_course_env --course noenv --canvas-id 172566 --image ok.sif \
+    --environment-root "${DERIVED_COURSE_FOLDER}/envs")
+assert_not_contains "$NOENV_OVERRIDE_OUT" "declares no environment_root"
+
 it "--environment-root skips the sub-app agreement check for a deliberate override"
 # The mismatched course above still fails once an override is given, because
 # the course folder itself must still exist and be writable -- so this reuses

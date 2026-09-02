@@ -284,4 +284,42 @@ assert_contains "$CS_BROKEN_LOG" "no usable course environment"
 it "codeserver: the degraded session log states the interpreter key was not set"
 assert_contains "$CS_BROKEN_LOG" "python.defaultInterpreterPath is NOT set"
 
+# --- code-server, the course that configured no environment at all.
+#
+# Not the same thing as the broken and unprovisioned cases above, and the
+# difference is entirely in the log. Nothing is absent here, so there is
+# nothing for teaching staff or ATG to repair, and a WARNING every session
+# would be a standing false alarm about a state the course chose.
+rm -f "$FAKE_JOB_STATE/argv.log" "$FAKE_JOB_STATE/server.pid" "$SETTINGS_FILE"
+run_launcher codeserver.script.sh \
+    "CODE_SERVER_PORT=7127" \
+    "PASSWORD=plaintext-must-not-reach-argv" \
+    "COURSE_ENV=" \
+    "COURSE_ENV_STATUS=not_configured" \
+    "STUB_PORT=7127" \
+    "STATE_DIR=/state" \
+    "PATH=/usr/local/bin:/usr/bin:/bin"
+CS_NONE_SETTINGS=$(cat "$SETTINGS_FILE" 2>/dev/null || echo "")
+CS_NONE_LOG=$(cat "$LAUNCH_LOG" 2>/dev/null || echo "")
+
+it "codeserver: a course with no environment configured still starts"
+assert_contains "$(cat "$FAKE_JOB_STATE/argv.log" 2>/dev/null || echo "")" "/usr/local/bin/code-server"
+
+it "codeserver: it sets no default interpreter, because there is no course one"
+assert_not_contains "$CS_NONE_SETTINGS" "python.defaultInterpreterPath"
+
+it "codeserver: it still writes the image's own settings"
+assert_contains "$CS_NONE_SETTINGS" '"security.workspace.trust.enabled": false'
+
+it "codeserver: it logs NO warning"
+# The reason not_configured exists as a separate status. Warning here tells
+# staff to repair something the course deliberately does not have, every
+# session, forever -- which is how a session log stops being read at all.
+assert_not_contains "$CS_NONE_LOG" "no usable course environment"
+
+it "codeserver: it still says in the log what it decided"
+# Silence is not the goal; a false alarm is. "Why is Python not configured"
+# must still be answerable from the log alone.
+assert_contains "$CS_NONE_LOG" "no course environment is configured"
+
 finish

@@ -145,6 +145,15 @@ else
         rendered_folder=$(printf '%s' "$rendered" | jq -r '.attributes.course_folder // empty')
         rendered_env_root=$(printf '%s' "$rendered" | jq -r '.attributes.environment_root // empty')
 
+        # An EMPTY environment_root is not a disagreement about a path: it is
+        # the sub-app declaring that this course wants no course-shared
+        # environment at all. Provisioning one would build a prefix no session
+        # ever looks at, so say what is actually wrong instead of printing two
+        # paths that differ.
+        if [ -z "$rendered_env_root" ]; then
+            fail "sub-app '${subapp}' declares no environment_root, so this course runs on its image alone. Set environment_root in the sub-app first, or pass --environment-root to provision one deliberately anyway."
+        fi
+
         if [ "$rendered_folder" != "$COURSE_FOLDER" ] || [ "$rendered_env_root" != "$ENV_ROOT" ]; then
             fail "sub-app '${subapp}' declares course_folder='${rendered_folder}' environment_root='${rendered_env_root}', which disagrees with the derived course_folder='${COURSE_FOLDER}' environment_root='${ENV_ROOT}'"
         fi

@@ -179,8 +179,17 @@ lc_validate_under() {
 # lc_classify_course_env <environment_root> <course_folder> <interpreter>
 #
 # Sets LC_COURSE_ENV to the resolved <environment_root>/default and
-# LC_COURSE_ENV_STATUS to "ok" or "missing". Returns nonzero ONLY when the
-# prefix escapes the course folder, or when <interpreter> is not given.
+# LC_COURSE_ENV_STATUS to "ok", "missing" or "not_configured". Returns nonzero
+# ONLY when the prefix escapes the course folder, or when <interpreter> is not
+# given.
+#
+# The three states answer two different questions, and keeping them apart is
+# the whole point of "not_configured". "missing" means the course ASKED for a
+# course-shared environment and does not have a usable one: staff broke it, or
+# nobody has provisioned it yet, so a WARNING is correct and the log must name
+# the path. "not_configured" means the course never asked for one at all --
+# its image already carries every package it needs -- so there is nothing to
+# warn about, and warning anyway trains staff to ignore the log.
 #
 # <interpreter> is the path, relative to the prefix, whose presence means the
 # environment is usable -- bin/python for a Python course, bin/R for an R one.
@@ -212,6 +221,19 @@ lc_classify_course_env() {
         return 1
     fi
 
+    # A blank environment root is the course saying it wants no course-shared
+    # environment. Nothing is resolved and nothing is validated, because there
+    # is no path to resolve: "${env_root}/default" would be the bare string
+    # "/default", which realpath resolves against the current directory and
+    # lc_validate_under then correctly rejects as an escape -- turning an
+    # ordinary opt-out into a fatal containment error.
+    if [ -z "$env_root" ]; then
+        LC_COURSE_ENV=""
+        LC_COURSE_ENV_STATUS="not_configured"
+        lc_log "no course environment is configured for this course"
+        return 0
+    fi
+
     prefix=$(lc_validate_under "${env_root}/default" "${course_folder}") || return 1
     LC_COURSE_ENV="$prefix"
 
@@ -234,8 +256,15 @@ lc_classify_course_env() {
 # course folder. Whether this user may SEE a staging kernel is decided in the
 # container by [ -w "$ENVIRONMENT_ROOT" ]: the staff group cannot be named
 # there, so group membership is not a question that can be asked.
+#
+# A blank environment root yields nothing and says nothing, for the same reason
+# lc_classify_course_env treats it as not_configured: "/staging" would resolve
+# against the current directory and be rejected as an escape, so a course that
+# opted out of a course environment would get a WARNING about a staging prefix
+# it never asked for.
 lc_resolve_staging() {
     local env_root="$1" course_folder="$2" resolved
+    [ -n "$env_root" ] || return 0
     if resolved=$(lc_validate_under "${env_root}/staging" "${course_folder}" 2>/dev/null); then
         printf '%s\n' "$resolved"
     else

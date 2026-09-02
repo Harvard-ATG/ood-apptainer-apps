@@ -71,6 +71,24 @@ assert_contains "$(broken abspath 's#imagefile: "#imagefile: "/shared/apptainerI
 it "an environment root outside the course folder fails"
 assert_contains "$(broken escape 's#environment_root: ".*"#environment_root: "/shared/courseSharedFolders/999999outer/999999/envs"#')" "course folder"
 
+# environment_root is OPTIONAL: a course whose image already carries every
+# package it needs declares none, and its sessions then start with no course
+# kernel and no warning. The gate has to let that ship, while still catching
+# the copy-pasted-another-course's-path defect the case above covers.
+optout=$(broken optout 's#^  environment_root: ".*"$#  environment_root: ""#')
+optout_status=$?
+
+it "a sub-app that configures NO course environment is not a finding"
+assert_not_contains "$optout" "FAIL"
+
+it "...and does not block the release"
+assert_eq "$([ "$optout_status" -eq 0 ] && echo zero || echo nonzero)" "zero"
+
+it "...and the gate still checked every sub-app"
+# Not vacuous: a gate that crashed before checking anything would also
+# produce no findings.
+assert_contains "$optout" "4 sub-app"
+
 it "trailing whitespace after a YAML scalar fails"
 assert_contains "$(broken trailing 's/^  course: "170681"/  course: "170681"  /')" "trailing whitespace"
 

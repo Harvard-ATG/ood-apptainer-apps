@@ -130,6 +130,8 @@ See [docs/images.md](docs/images.md) for the options, what a build produces, and
 
 ## Provisioning a course environment
 
+A course environment is optional. A course whose image already carries every package it needs leaves `environment_root` empty in its sub-apps and provisions nothing. Its sessions then start with no course kernel and no warning about a missing environment.
+
 ```bash
 scripts/submit-provision-course-env.sh --course cs1090a --canvas-id 12345 \
     --image jupyter-codeserver-ai/jupyterlab-<stamp>-<commit>.sif

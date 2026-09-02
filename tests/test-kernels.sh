@@ -15,21 +15,32 @@ trap fixture_destroy EXIT
 LAUNCHER=../ood/jupyterlab-ai/template/jupyterlab.script.sh
 
 # Runs the launcher with a no-op `exec`, so generation happens and the server
-# never starts. Echoes nothing; the caller inspects the generated tree.
+# never starts. Echoes nothing; the caller inspects the generated tree, or
+# $GENERATOR_LOG for what the session log said.
+#
+# COURSE_ENV_OVERRIDE, COURSE_LABEL_OVERRIDE and SYSTEM_DEFAULT_LABEL_OVERRIDE
+# use ${VAR-default} rather than ${VAR:-default}, so a test can set any of them
+# to the EMPTY string -- which is the value under test for a course that
+# configured nothing.
 run_generator() {
     local status="$1" staging="$2"
+    # Recomputed per call, not captured once: fixture_destroy/fixture_create
+    # below moves $FIXTURE_ROOT, and a path captured before that move points
+    # into a directory that no longer exists.
+    GENERATOR_LOG="$FIXTURE_ROOT/generator.log"
     rm -rf "$FAKE_JOB_STATE/jupyter"
     mkdir -p "$FAKE_JOB_STATE/jupyter/config" "$FAKE_JOB_STATE/jupyter/data"
     HOME="$FAKE_HOME" \
-    COURSE_ENV="$FAKE_ENV_ROOT/default" \
+    COURSE_ENV="${COURSE_ENV_OVERRIDE-$FAKE_ENV_ROOT/default}" \
     COURSE_ENV_STATUS="$status" \
     COURSE_ENV_STAGING="$staging" \
     COURSE_LABEL="${COURSE_LABEL_OVERRIDE-APMTH 115}" \
-    ENVIRONMENT_ROOT="$FAKE_ENV_ROOT" \
+    SYSTEM_DEFAULT_LABEL="${SYSTEM_DEFAULT_LABEL_OVERRIDE-Python 3 (System Default — no course packages)}" \
+    ENVIRONMENT_ROOT="${ENVIRONMENT_ROOT_OVERRIDE-$FAKE_ENV_ROOT}" \
     JUPYTER_CONFIG_DIR="$FAKE_JOB_STATE/jupyter/config" \
     JUPYTER_DATA_DIR="$FAKE_JOB_STATE/jupyter/data" \
     MY_JUP_PORT=7123 MY_JUP_PASSWD=sha1:a:b MY_JUP_BASEURL=/node/n/7123/ \
-    bash -c 'exec() { :; }; . "$1"' _ "$LAUNCHER" >/dev/null 2>&1
+    bash -c 'exec() { :; }; . "$1"' _ "$LAUNCHER" >"$GENERATOR_LOG" 2>&1
 }
 
 KERNELS="$FAKE_JOB_STATE/jupyter/data/kernels"
@@ -60,10 +71,25 @@ assert_success test -f "$KERNELS/image-python/kernel.json"
 it "the image kernel runs the image interpreter"
 assert_contains "$(cat "$KERNELS/image-python/kernel.json")" '/opt/conda/bin/python'
 
-it "the image kernel's name says it carries no course packages"
+it "the image kernel is named by the label the course configured"
 # The name is the entire control. A student who picks this kernel must be able
-# to tell from the kernel list alone why `import pandas` then fails.
-assert_contains "$(cat "$KERNELS/image-python/kernel.json")" 'no course packages'
+# to tell from the kernel list alone why `import pandas` then fails -- but only
+# a course that EXPECTS a course environment can say that truthfully, so the
+# wording is a per-course attribute rather than a constant here.
+assert_contains "$(cat "$KERNELS/image-python/kernel.json")" \
+    '"display_name": "Python 3 (System Default — no course packages)"'
+
+it "the image kernel falls back to a neutral label if none was threaded through"
+# The default must NOT be the alarming wording. A course with no course
+# environment is not degraded, and naming its only kernel after a missing
+# thing describes a problem that course does not have.
+SYSTEM_DEFAULT_LABEL_OVERRIDE="" run_generator ok ""
+assert_contains "$(cat "$KERNELS/image-python/kernel.json")" \
+    '"display_name": "Python 3 (System Default)"'
+
+it "the neutral default says nothing about missing course packages"
+assert_not_contains "$(cat "$KERNELS/image-python/kernel.json")" 'no course packages'
+run_generator ok ""
 
 it "the course kernel is the default when it exists"
 assert_contains "$(cat "$CONFIG")" 'c.MultiKernelManager.default_kernel_name = "course-python"'
@@ -96,6 +122,48 @@ it "the allowed set does not name a kernel that was never generated"
 # allowed_kernelspecs listing course-python with no course-python on disk is
 # the failure that looks fine in the config and produces an empty launcher.
 assert_not_contains "$(cat "$CONFIG")" '"course-python"'
+
+it "an unprovisioned course WARNS, because something it asked for is absent"
+# The positive control for the not_configured block below: without it, that
+# block's "logs no warning" assertions would pass against a launcher that
+# had simply stopped warning about anything at all.
+assert_contains "$(cat "$GENERATOR_LOG")" "WARNING"
+
+# --- the course configured no environment at all ---------------------------
+# Distinct from unprovisioned. Nothing is absent here, so the session is not
+# degraded: it is exactly what the course asked for.
+COURSE_ENV_OVERRIDE="" ENVIRONMENT_ROOT_OVERRIDE="" SYSTEM_DEFAULT_LABEL_OVERRIDE="" \
+    run_generator not_configured ""
+
+it "a course with no environment configured generates no course kernel"
+assert_failure test -e "$KERNELS/course-python"
+
+it "a course with no environment configured still gets a working session"
+assert_success test -f "$KERNELS/image-python/kernel.json"
+
+it "...with the image kernel as the default"
+assert_contains "$(cat "$CONFIG")" 'c.MultiKernelManager.default_kernel_name = "image-python"'
+
+it "...named with the neutral label, not the degraded one"
+assert_contains "$(cat "$KERNELS/image-python/kernel.json")" \
+    '"display_name": "Python 3 (System Default)"'
+
+it "a course with no environment configured logs NO warning"
+# The reason this state exists. Warning here tells teaching staff to repair
+# something the course deliberately does not have, every session, forever --
+# which is how a session log stops being read at all.
+assert_not_contains "$(cat "$GENERATOR_LOG")" "WARNING"
+
+it "a course with no environment configured still says so in the log"
+# Silence is not the goal; a false alarm is. "Why is there only one kernel"
+# must still be answerable from the log alone.
+assert_contains "$(cat "$GENERATOR_LOG")" "no course environment is configured"
+
+it "a course with no environment configured does not probe an empty prefix"
+# `usable ""` must be false rather than testing "/bin/python" in the image.
+# Reaching the image interpreter through the course-kernel branch would
+# register it twice, under two names, one of them the course's.
+assert_failure test -e "$KERNELS/course-python"
 
 # --- broken course environment --------------------------------------------
 fixture_break_course_python

@@ -67,6 +67,7 @@ form:
   - course_label
   - course_folder
   - environment_root
+  - system_default_label
 
 attributes:
   bc_num_hours:
@@ -100,9 +101,26 @@ attributes:
   # enabledGroups above, so adding a cross-list access group can never silently
   # change which folder is mounted.
   course: "172566"
+
   # Student-facing course label. Threaded into the Jupyter kernel names so a
   # student sees which course an environment belongs to, and cross-checked
   # against this sub-app's title by scripts/render-forms.sh.
   course_label: "APMTH 115"
+
+  # The course shared folder, bound into the container. It is also the
+  # containment root: environment_root, and everything resolved beneath it,
+  # must stay inside this path, or the launch fails.
   course_folder: "/shared/courseSharedFolders/172566outer/172566"
+
+  # Course-shared interpreter prefixes, maintained by teaching staff outside
+  # this repo. Optional: leave it empty for a course whose image already
+  # carries every package it needs. The session then starts with no course
+  # kernel and no WARNING, because nothing is missing.
   environment_root: "/shared/courseSharedFolders/172566outer/172566/envs"
+
+  # Display name of the image-owned kernel, which every session registers.
+  # Optional; the default is "Python 3 (System Default)". This course DOES
+  # expect a course environment, so its fallback name has to read as a
+  # warning: a student who lands on this kernel is in a degraded session, not
+  # a normal one.
+  system_default_label: "Python 3 (System Default — no course packages)"

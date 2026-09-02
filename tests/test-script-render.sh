@@ -81,6 +81,21 @@ for app in $apps; do
     it "$app: validates the environment prefix before launch"
     assert_contains "$body" "lc_validate_under"
 
+    it "$app: guards that validation against a course that configures no environment"
+    # environment_root is optional. lc_validate_under "" resolves the empty
+    # string against the current directory, so an unguarded call rejects an
+    # ordinary opt-out as an escaping path and exits 1 -- a course that wanted
+    # no course environment would get no session at all.
+    assert_contains "$body" 'if [ -n "${ENVIRONMENT_ROOT_RAW}" ]; then'
+
+    it "$app: still classifies unconditionally, so every session reports a status"
+    # The guard belongs around the path validation, NOT around the
+    # classification: COURSE_ENV_STATUS is written into the environment file
+    # either way, and an unset one would leave the in-container launcher
+    # falling back to "missing" and warning about the very thing the course
+    # opted out of.
+    assert_contains "$body" 'lc_classify_course_env "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}" bin/python'
+
     it "$app: checks the course folder exists and is readable before building binds"
     # lc_validate_under uses realpath -m (tolerates missing components) and the
     # course folder is only ever the root of a validation, never the target, so
@@ -172,5 +187,25 @@ assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" '"COURSE_ENV_STAGING=${C
 
 it "codeserver: does NOT write COURSE_ENV_STAGING -- staging is Jupyter-only"
 assert_not_contains "$(cat "$TMP/codeserver-ai-script.sh")" "COURSE_ENV_STAGING"
+
+it "jupyterlab: the sub-app's own system_default_label is what renders"
+# The name of the image kernel is a per-course decision, so it has to travel
+# the same route course_label does. Asserted on the sub-app's own value rather
+# than on the key alone: a template that rendered the key with a hardcoded
+# string would satisfy a key-only check while making the attribute inert. The
+# fixture's value is deliberately not the production wording, so the two
+# cannot match by accident.
+assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" \
+    'SYSTEM_DEFAULT_LABEL="Python 3 (Fixture System Default)"'
+
+it "jupyterlab: that label reaches the container environment file"
+assert_contains "$(cat "$TMP/jupyterlab-ai-script.sh")" \
+    '"SYSTEM_DEFAULT_LABEL=${SYSTEM_DEFAULT_LABEL}"'
+
+it "codeserver: does NOT write SYSTEM_DEFAULT_LABEL -- it has no kernel to name"
+# code-server shows no kernel list, so there is nothing for the label to name.
+# Threading it anyway would invite a course to set it there and see nothing
+# happen.
+assert_not_contains "$(cat "$TMP/codeserver-ai-script.sh")" "SYSTEM_DEFAULT_LABEL"
 
 finish

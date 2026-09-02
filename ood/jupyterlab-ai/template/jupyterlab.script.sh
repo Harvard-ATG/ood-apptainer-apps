@@ -14,7 +14,9 @@ log() {
 }
 
 log "container HOME=${HOME}"
-log "course environment=${COURSE_ENV}"
+# Both halves, because a bare empty prefix cannot be told apart from a bug that
+# dropped the value: status says which of the two an empty prefix means.
+log "course environment status=${COURSE_ENV_STATUS:-missing} prefix=${COURSE_ENV:-none}"
 
 # ---------------------------------------------------------------------------
 # Terminal environment.
@@ -62,6 +64,16 @@ IMAGE_PYTHON=/opt/conda/bin/python
 COURSE_LABEL="${COURSE_LABEL:-}"
 [ -n "$COURSE_LABEL" ] || COURSE_LABEL="Course Environment"
 
+# The image kernel's display name is a per-course attribute, because the right
+# wording depends on something this script cannot see: whether the course ever
+# ASKED for a course-shared environment. A course that did, and is degraded,
+# needs a name that reads as a warning. A course that runs entirely on its
+# image is not degraded at all, and the same warning would describe a problem
+# that does not exist. The default is the neutral wording; a course that wants
+# the alarming one sets system_default_label in its sub-app.
+SYSTEM_DEFAULT_LABEL="${SYSTEM_DEFAULT_LABEL:-}"
+[ -n "$SYSTEM_DEFAULT_LABEL" ] || SYSTEM_DEFAULT_LABEL="Python 3 (System Default)"
+
 # JUPYTER_PATH makes these kernelspecs discoverable; the image installs no
 # ipykernel kernelspec of its own.
 mkdir -p "${KERNEL_DIR}" "${CONFIG_DIR}" || {
@@ -96,7 +108,7 @@ usable() {
 # The image kernel is generated unconditionally and is never the default while a
 # course kernel exists. It exists so that an unprovisioned or broken course
 # environment leaves a usable session instead of an empty one.
-write_kernel image-python "Python 3 (System Default — no course packages)" "${IMAGE_PYTHON}" || {
+write_kernel image-python "${SYSTEM_DEFAULT_LABEL}" "${IMAGE_PYTHON}" || {
     log "ERROR: cannot write the image kernelspec"
     exit 1
 }
@@ -117,9 +129,15 @@ if [ "${COURSE_ENV_STATUS:-missing}" = ok ] && usable "${COURSE_ENV}"; then
     # work helps nobody.
     export PATH="${COURSE_ENV}/bin:${PATH}"
     log "course kernel ready: ${COURSE_ENV}"
+elif [ "${COURSE_ENV_STATUS:-missing}" = not_configured ]; then
+    # NOT a warning. This course asked for no course-shared environment, so
+    # there is nothing absent and nothing for staff to repair. Logged all the
+    # same, because "which kernel does this session offer, and why" is the
+    # first question asked of any session log.
+    log "no course environment is configured; this session offers only '${SYSTEM_DEFAULT_LABEL}'."
 else
     log "WARNING: no course kernel (status=${COURSE_ENV_STATUS:-missing}, prefix=${COURSE_ENV:-unset})."
-    log "WARNING: this session offers only 'Python 3 (System Default — no course packages)'."
+    log "WARNING: this session offers only '${SYSTEM_DEFAULT_LABEL}'."
     log "WARNING: the course environment must be provisioned or repaired by teaching staff or ATG."
 fi
 

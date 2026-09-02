@@ -32,17 +32,27 @@ IMAGE_FILE="<%= context.imagefile %>"
 COURSE_FOLDER="<%= context.course_folder %>"
 COURSE_LABEL="<%= context.course_label %>"
 ENVIRONMENT_ROOT_RAW="<%= context.environment_root %>"
+SYSTEM_DEFAULT_LABEL="<%= context.system_default_label %>"
 
 # ---------------------------------------------------------------------------
 # Validate paths before doing anything. environment_root and the resolved
 # default target must both stay beneath the canonical course folder; the
 # resolved prefix is then used for the lifetime of this job, so a staff symlink
 # switch cannot move a running session's interpreter.
+#
+# environment_root is OPTIONAL. A blank one means the course wants no
+# course-shared environment, and there is then no path to validate: passing the
+# empty string to lc_validate_under resolves it against the current directory
+# and fails the launch outright, which is the opposite of opting out.
 # ---------------------------------------------------------------------------
-ENVIRONMENT_ROOT=$(lc_validate_under "${ENVIRONMENT_ROOT_RAW}" "${COURSE_FOLDER}") || exit 1
+if [ -n "${ENVIRONMENT_ROOT_RAW}" ]; then
+    ENVIRONMENT_ROOT=$(lc_validate_under "${ENVIRONMENT_ROOT_RAW}" "${COURSE_FOLDER}") || exit 1
+else
+    ENVIRONMENT_ROOT=""
+fi
 
-# A missing course environment degrades the session; only an escaping path is
-# fatal. See lc_classify_course_env.
+# A missing course environment degrades the session and an unconfigured one is
+# ordinary; only an escaping path is fatal. See lc_classify_course_env.
 lc_classify_course_env "${ENVIRONMENT_ROOT}" "${COURSE_FOLDER}" bin/python || exit 1
 COURSE_ENV="${LC_COURSE_ENV}"
 COURSE_ENV_STATUS="${LC_COURSE_ENV_STATUS}"
@@ -87,6 +97,7 @@ lc_write_env_file "${ENV_FILE}" \
     "COURSE_ENV=${COURSE_ENV}" \
     "COURSE_ENV_STATUS=${COURSE_ENV_STATUS}" \
     "COURSE_LABEL=${COURSE_LABEL}" \
+    "SYSTEM_DEFAULT_LABEL=${SYSTEM_DEFAULT_LABEL}" \
     "COURSE_ENV_STAGING=${COURSE_ENV_STAGING}" \
     "CLAUDE_CONFIG_DIR=${HOME}/.claude" \
     "CODEX_HOME=${HOME}/.codex" \
