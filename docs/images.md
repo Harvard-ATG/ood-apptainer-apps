@@ -62,7 +62,7 @@ Editing that line is the only thing that changes which image students launch. Th
 
 ## Driving a build before a course names it
 
-`ood/<app>/local/dev.yml.erb` is an administrator sandbox. It is a normal sub-app with one difference: its `enabledGroups` list is empty, so only the OOD admin group can see it. Everyone else gets `disable_this_app`.
+`ood/<app>/local/admin.yml.erb` is an administrator sandbox. It is a normal sub-app with one difference: its `enabledGroups` list is empty, so only the OOD admin group can see it. Everyone else gets `disable_this_app`.
 
 Its `imagefile`, `course_folder` and `environment_root` are dropdowns rather than fixed strings. That lets you launch a build, mount a real course folder, and drive the session before any course sub-app names the image. Nothing is committed to test a build.
 

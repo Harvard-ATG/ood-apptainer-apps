@@ -104,12 +104,12 @@ done
 
 NO_IMAGE="jupyter-codeserver-ai/NO-DEPLOYED-IMAGE-FOUND.sif"
 
-DEV_SUBAPPS=(
-    "../ood/jupyterlab-ai/local/dev.yml.erb|Jupyter Lab - AI ADMIN|jupyterlab"
-    "../ood/codeserver-ai/local/dev.yml.erb|Code Server - AI ADMIN|codeserver"
+ADMIN_SUBAPPS=(
+    "../ood/jupyterlab-ai/local/admin.yml.erb|Jupyter Lab - AI ADMIN|jupyterlab"
+    "../ood/codeserver-ai/local/admin.yml.erb|Code Server - AI ADMIN|codeserver"
 )
 
-for row in "${DEV_SUBAPPS[@]}"; do
+for row in "${ADMIN_SUBAPPS[@]}"; do
     IFS='|' read -r path title app <<<"$row"
     label="$(basename "$(dirname "$(dirname "$path")")")/$(basename "$path")"
 
@@ -194,7 +194,7 @@ image_values() {  # <FAKE_GROUPS> <sub-app path>
     json_eval "$rendered" 'd["attributes"]["imagefile"]["options"].map { |o| o[1] }.join(",")'
 }
 
-for row in "${DEV_SUBAPPS[@]}"; do
+for row in "${ADMIN_SUBAPPS[@]}"; do
     IFS='|' read -r path title app <<<"$row"
     label="$(basename "$(dirname "$(dirname "$path")")")/$(basename "$path")"
 
@@ -234,7 +234,7 @@ done
 #
 # Read from the RENDERED file, not from the table above: asserting the table's
 # own value against itself would pass whatever the sub-app actually says.
-for row in "${DEV_SUBAPPS[@]}"; do
+for row in "${ADMIN_SUBAPPS[@]}"; do
     IFS='|' read -r path title app <<<"$row"
     label="$(basename "$(dirname "$(dirname "$path")")")/$(basename "$path")"
 
@@ -269,9 +269,9 @@ assert_eq "$(printf '%s\n' "${ALL_TITLES[@]}" | sort | uniq -d)" ""
 it "the two sandboxes offer the same course folders as each other"
 # They are separate files that do not inherit, exactly like the course
 # sub-apps, so the two lists can silently drift apart.
-jl_folders=$(render_form "$ADMIN_GROUP" ../ood/jupyterlab-ai/local/dev.yml.erb | ruby -rjson -e \
+jl_folders=$(render_form "$ADMIN_GROUP" ../ood/jupyterlab-ai/local/admin.yml.erb | ruby -rjson -e \
     'print JSON.parse(STDIN.read)["attributes"]["course_folder"]["options"].to_json')
-cs_folders=$(render_form "$ADMIN_GROUP" ../ood/codeserver-ai/local/dev.yml.erb | ruby -rjson -e \
+cs_folders=$(render_form "$ADMIN_GROUP" ../ood/codeserver-ai/local/admin.yml.erb | ruby -rjson -e \
     'print JSON.parse(STDIN.read)["attributes"]["course_folder"]["options"].to_json')
 assert_eq "$jl_folders" "$cs_folders"
 
