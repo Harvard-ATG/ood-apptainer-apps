@@ -112,8 +112,6 @@ The environment file also crosses this boundary. Apptainer evaluates `--env-file
 
 ### Containment: what it protects and what it does not
 
-Host-level containment is the security boundary. Apptainer runs unprivileged in the target deployment, so mounts go through FUSE. The launcher runs Apptainer behind `env -i`, with `--containall --cleanenv` and an explicit `--no-mount` list. The bind set is fixed:
-
 ```mermaid
 flowchart LR
     E["EFS /shared<br>real home, course folder, canonical image"]
@@ -136,6 +134,9 @@ flowchart LR
 
     style NODE fill:transparent,stroke-width:1px,stroke-dasharray:5 5
 ```
+
+
+Host-level containment is the security boundary. Apptainer runs unprivileged in the target deployment, so mounts go through FUSE. The launcher runs Apptainer behind `env -i`, with `--containall --cleanenv` and an explicit `--no-mount` list. The bind set is fixed:
 
 - The student's real home.
 - The one course folder.
