@@ -171,6 +171,8 @@ else
     # Python changed rather than when anything about the environment changed.
     # Installing the base interpreter beneath the environment root keeps the
     # prefix self-contained, the same as a micromamba prefix.
+    cd "$SCRATCH" || fail "cannot change to scratch directory '${SCRATCH}'"
+
     UV_PYTHON_INSTALL_DIR="${RESOLVED_ENV_ROOT}/python"
     export UV_PYTHON_INSTALL_DIR
     mkdir -p "$UV_PYTHON_INSTALL_DIR" || fail "cannot create '${UV_PYTHON_INSTALL_DIR}'"
