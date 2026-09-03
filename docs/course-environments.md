@@ -32,7 +32,7 @@ scripts/submit-provision-course-env.sh \
     --image jupyter-codeserver-ai/jupyterlab-20260828T030141Z-4e73009.sif
 ```
 
-This runs the provisioning script inside the image on a compute node and waits for it, so the command's exit status is the job's. It creates `<environment_root>/default` and prints the prefix, the manager and the Python version it built.
+This submits the provisioning job to a compute node and returns immediately. The job creates `<environment_root>/default`. Monitor the job with `squeue -u $(id -nu)`. The log goes to `$OOD_APPTAINER_SCRATCH_ROOT/provisioning/<course>/provision.log`.
 
 Options:
 

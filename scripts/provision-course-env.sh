@@ -139,6 +139,7 @@ mkdir -p "$SCRATCH" || fail "cannot create scratch directory '${SCRATCH}'"
 MAMBA_ROOT_PREFIX="${SCRATCH}/mamba-root"
 UV_CACHE_DIR="${SCRATCH}/uv-cache"
 TMPDIR="${SCRATCH}/tmp"
+PIP_CACHE_DIR="${SCRATCH}/pip-cache"
 # HOME is redirected too, and it is not redundant with the three above. This
 # container binds no home, so $HOME names a path that does not exist and cannot
 # be created. micromamba writes there regardless of MAMBA_ROOT_PREFIX -- the
@@ -149,10 +150,11 @@ TMPDIR="${SCRATCH}/tmp"
 #   Read-only file system [<home>/.cache/conda/pkgs/cache/shards]
 #
 # Redirecting HOME covers both. XDG_CACHE_HOME alone does not: it moves the
-# shard cache and then fails on the registry instead.
+# shard cache and then fails on the registry instead. PIP_CACHE_DIR ensures
+# pip's temporary files during the environment.yml pip phase also go to scratch.
 HOME="${SCRATCH}/home"
-export MAMBA_ROOT_PREFIX UV_CACHE_DIR TMPDIR HOME
-mkdir -p "$MAMBA_ROOT_PREFIX" "$UV_CACHE_DIR" "$TMPDIR" "$HOME" \
+export MAMBA_ROOT_PREFIX UV_CACHE_DIR TMPDIR PIP_CACHE_DIR HOME
+mkdir -p "$MAMBA_ROOT_PREFIX" "$UV_CACHE_DIR" "$TMPDIR" "$PIP_CACHE_DIR" "$HOME" \
     || fail "cannot create manager cache directories under scratch '${SCRATCH}'"
 
 # --- Step 7: create the prefix at its FINAL absolute path -------------------

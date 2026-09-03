@@ -8,7 +8,7 @@ Three steps, three commands: build the image, copy it to the cluster image roots
 scripts/submit-build-image.sh jupyter-codeserver-ai/jupyterlab
 ```
 
-This runs the build on a compute node and waits for it, so the command's exit status is the build's. Commit or stash your changes first. The build refuses to run in a dirty worktree.
+This submits the build job to a compute node and returns immediately. Commit or stash your changes first—the build refuses to run in a dirty worktree. Monitor the job with `squeue -u $(id -nu)`. The log goes to `$OOD_APPTAINER_BUILD_SCRATCH/logs/<family>-<app>.log`.
 
 It writes three files to `build/`:
 

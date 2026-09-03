@@ -9,10 +9,6 @@
 # does not belong on a login node -- and Apptainer is not on a login node's PATH
 # without Spack. This wrapper removes both concerns from whoever is building:
 # the job runs on a compute node, and build-image.sh resolves Apptainer itself.
-#
-# `sbatch --wait` is what lets this return the build's real result. Without it
-# the caller gets a job id and an apparent success for a build that may fail
-# half an hour later with nobody watching.
 set -uo pipefail
 
 this_script="scripts/submit-build-image.sh"
@@ -106,7 +102,7 @@ PARTITION_FLAG=()
 [ -n "$PARTITION" ] && PARTITION_FLAG=(--partition="$PARTITION")
 
 log "submitting build job for '${TARGET}' (Slurm log: ${SLURM_LOG})"
-sbatch --wait \
+sbatch \
     --job-name="build-image-${FAMILY}-${APP}" \
     --output="$SLURM_LOG" \
     --cpus-per-task="$CPUS" \
@@ -116,9 +112,9 @@ sbatch --wait \
     "$JOB_SCRIPT_FILE"
 status=$?
 
-if [ "$status" -eq 0 ]; then
-    log "build job for '${TARGET}' succeeded"
-else
-    log "ERROR: build job for '${TARGET}' failed (exit ${status}); see Slurm log at ${SLURM_LOG}"
+if [ "$status" -ne 0 ]; then
+    log "ERROR: failed to submit build job (exit ${status})"
+    exit "$status"
 fi
-exit "$status"
+
+log "build job submitted successfully; check status with: squeue -u $(id -nu) -n build-image-${FAMILY}-${APP}"

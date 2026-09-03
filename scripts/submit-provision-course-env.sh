@@ -229,18 +229,17 @@ trap 'rm -f "$JOB_SCRIPT_FILE"' EXIT
 printf '%s\n' "$JOB_SCRIPT_CONTENT" > "$JOB_SCRIPT_FILE"
 chmod 755 "$JOB_SCRIPT_FILE"
 
-# --- Step 8: submit ONE job, wait for it, and report its real result --------
+# --- Step 8: submit ONE job -----------------------------------------------
 lc_log "submitting provisioning job for course '${COURSE}' (Slurm log: ${SLURM_LOG})"
-sbatch --wait \
+sbatch \
     --job-name="provision-course-env-${COURSE}" \
     --output="$SLURM_LOG" \
     "$JOB_SCRIPT_FILE"
 status=$?
 
 if [ "$status" -ne 0 ]; then
-    lc_log "ERROR: provisioning job for course '${COURSE}' failed (exit ${status}); see Slurm log at ${SLURM_LOG}"
-else
-    lc_log "provisioning job for course '${COURSE}' succeeded"
+    lc_log "ERROR: failed to submit provisioning job (exit ${status})"
+    exit "$status"
 fi
 
-exit "$status"
+lc_log "provisioning job submitted successfully; check status with: squeue -u $(id -nu) -n provision-course-env-${COURSE}"
