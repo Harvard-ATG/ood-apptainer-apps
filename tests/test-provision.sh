@@ -222,6 +222,37 @@ assert_contains "$OUT" "numpy"
 it "a failed representative-import check leaves no staff records either"
 assert_failure test -f "$ENVROOT/manager"
 
+it "it maps the ipython package to its actual, differently-cased import name"
+# Regression test for a real cs1090a provisioning failure: the representative-
+# import check ran `import ipython` (lowercase) against a package whose real
+# module is `IPython` (mixed case), so a correctly-installed environment was
+# rejected as broken. This stub fails ONLY the exact lowercase import, so it
+# proves the check now asks for the properly-cased name, not merely that some
+# import happened to succeed.
+ENVROOT=$(setup)
+printf 'name: t\nchannels:\n  - conda-forge\ndependencies:\n  - python=3.13\n  - ipykernel\n  - ipython\n' \
+    > "$ROOT/spec/environment.yml"
+cat > "$BIN/micromamba" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >> "$STUB_LOG"
+for a in "$@"; do case "$a" in --prefix=*) P=${a#--prefix=};; esac; done
+[ -n "${P:-}" ] || { i=1; for a in "$@"; do [ "$a" = --prefix ] && P=$(eval echo \"\$$((i+1))\"); i=$((i+1)); done; }
+mkdir -p "$P/bin"
+cat > "$P/bin/python" <<'PY'
+#!/bin/sh
+if [ "$1" = "-c" ]; then
+    case "$2" in
+        "import ipython") exit 1 ;;
+        *) exit 0 ;;
+    esac
+fi
+echo "Python 3.13.0"
+PY
+chmod 755 "$P/bin/python"
+STUB
+chmod 755 "$BIN/micromamba"
+assert_success provision "$ENVROOT"
+
 it "it rejects a prefix whose interpreter reports the wrong Python version"
 # Step 8 requires that `python -V` reports the CONFIGURED version, not merely
 # that the interpreter runs at all. A stub that reports a version other than

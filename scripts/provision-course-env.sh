@@ -234,7 +234,7 @@ diagnose_import_failure() {
     else
         lc_log "diagnostic: no directory matching '${import_name}' found under '${site_pkgs}'"
     fi
-    dist_info=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}*.dist-info" 2>/dev/null | head -n1)
+    dist_info=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}-*.dist-info" 2>/dev/null | head -n1)
     if [ -n "$dist_info" ] && [ -f "${dist_info}/RECORD" ]; then
         record_count=$(grep -c "^${import_name}/" "${dist_info}/RECORD")
         lc_log "diagnostic: RECORD at '${dist_info}' lists ${record_count} files under '${import_name}/'"
@@ -275,6 +275,7 @@ representative_import_name() {
         pyyaml) echo yaml ;;
         pillow) echo PIL ;;
         imbalanced-learn) echo imblearn ;;
+        ipython) echo IPython ;;
         *) echo "${1//-/_}" ;;
     esac
 }
