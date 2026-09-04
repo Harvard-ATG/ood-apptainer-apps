@@ -202,89 +202,44 @@ case "$ACTUAL_PY_VERSION" in
     *) fail "prefix '${PREFIX}' reports Python '${ACTUAL_PY_VERSION}', expected ${PY_VERSION}" ;;
 esac
 
-# Diagnostic for an import failure: the checks below used to swallow both
-# stdout and stderr, which is why a prior investigation into an ipython import
-# failure had to infer the cause from a filesystem listing after the fact
-# instead of the real traceback. This captures the actual exception, retries
-# once after a delay to tell a filesystem consistency race (which self-heals)
-# apart from a genuinely dropped file (which does not), and reports the
-# on-disk file count for the package that failed to import. Diagnostic-only:
-# it does not change whether provisioning ultimately fails.
-DIAG_RETRY_DELAY="${PROVISION_DIAG_RETRY_DELAY:-5}"
-diagnose_import_failure() {
-    local import_name="$1" spec_package="$2" first_traceback retry_traceback
-    local site_pkgs pkg_dir file_count dist_info record_count
-
-    first_traceback=$("${PREFIX}/bin/python" -c "import ${import_name}" 2>&1)
-
-    lc_log "diagnostic: import '${import_name}' failed; retrying after ${DIAG_RETRY_DELAY}s to check for a filesystem consistency race"
-    sleep "$DIAG_RETRY_DELAY"
-    retry_traceback=$("${PREFIX}/bin/python" -c "import ${import_name}" 2>&1)
-    if [ -z "$retry_traceback" ]; then
-        lc_log "diagnostic: '${import_name}' imported successfully on RETRY -- this points at a filesystem consistency race, not a dropped file"
+# ipykernel is the only import worth gating provisioning on: every spec is
+# guaranteed to declare it, under exactly this name, and without it no kernel
+# can start at all. A prior version of this check also guessed an import name
+# for some OTHER declared package (e.g. "ipython") and failed provisioning if
+# the guess was wrong -- which rejected a correctly-built cs1090a environment,
+# because the real module is IPython, not ipython. A distribution's name and
+# its import name are not reliably derivable from each other (bs4, sklearn,
+# and PIL are three more that don't match), so that guessing is gone for
+# good; see the admin hint below for how to check anything further by hand.
+if ! IPYKERNEL_ERROR=$("${PREFIX}/bin/python" -c "import ipykernel" 2>&1); then
+    RETRY_DELAY="${PROVISION_DIAG_RETRY_DELAY:-5}"
+    lc_log "diagnostic: import ipykernel failed; retrying after ${RETRY_DELAY}s to check for a filesystem consistency race"
+    sleep "$RETRY_DELAY"
+    if "${PREFIX}/bin/python" -c "import ipykernel" >/dev/null 2>&1; then
+        lc_log "diagnostic: ipykernel imported successfully on RETRY -- this points at a filesystem consistency race, not a dropped file"
     else
-        lc_log "diagnostic: '${import_name}' still fails on retry -- not a transient race"
+        lc_log "diagnostic: ipykernel still fails on retry -- not a transient race"
     fi
-
-    site_pkgs="${PREFIX}/lib/python${PY_VERSION}/site-packages"
-    pkg_dir=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}" 2>/dev/null | head -n1)
-    if [ -n "$pkg_dir" ]; then
-        file_count=$(find "$pkg_dir" -type f 2>/dev/null | wc -l | tr -d ' ')
-        lc_log "diagnostic: on-disk file count under '${pkg_dir}': ${file_count}"
-    else
-        lc_log "diagnostic: no directory matching '${import_name}' found under '${site_pkgs}'"
-    fi
-    dist_info=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}-*.dist-info" 2>/dev/null | head -n1)
-    if [ -n "$dist_info" ] && [ -f "${dist_info}/RECORD" ]; then
-        record_count=$(grep -c "^${import_name}/" "${dist_info}/RECORD")
-        lc_log "diagnostic: RECORD at '${dist_info}' lists ${record_count} files under '${import_name}/'"
-    fi
-
     lc_log "diagnostic: PATH=${PATH:-<unset>} PYTHONPATH=${PYTHONPATH:-<unset>} PYTHONHOME=${PYTHONHOME:-<unset>}"
+    fail "prefix '${PREFIX}' cannot import ipykernel; no kernel can start. First-attempt error: ${IPYKERNEL_ERROR}"
+fi
 
-    fail "prefix '${PREFIX}' cannot import ${import_name} (from spec package '${spec_package}'); first-attempt error: ${first_traceback}"
-}
-
-"${PREFIX}/bin/python" -c "import ipykernel" >/dev/null 2>&1 \
-    || diagnose_import_failure ipykernel ipykernel
-
-# A representative import from the spec: the first dependency that is neither
-# python nor ipykernel (both already checked above). Best-effort by design --
-# a spec that declares nothing beyond ipykernel has nothing further to check.
-pick_representative_package() {
-    if [ "$MANAGER" = micromamba ]; then
-        sed -n '/^dependencies:/,/^[^ ]/p' "${SPEC}/environment.yml" \
-            | grep -E '^[[:space:]]*-[[:space:]]+[A-Za-z]' \
-            | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/[<>=!,;].*$//; s/:$//; s/[[:space:]]+$//' \
-            | grep -vxE 'python|ipykernel|pip' \
-            | head -n1
-    else
-        grep -oE '"[A-Za-z0-9_.-]+' "${SPEC}/pyproject.toml" \
-            | sed -E 's/^"//' \
-            | grep -vxE 'python|ipykernel' \
-            | head -n1
-    fi
-}
-
-# A small number of well-known distribution names whose import name differs.
-representative_import_name() {
-    case "$1" in
-        beautifulsoup4) echo bs4 ;;
-        scikit-learn) echo sklearn ;;
-        python-graphviz) echo graphviz ;;
-        pyyaml) echo yaml ;;
-        pillow) echo PIL ;;
-        imbalanced-learn) echo imblearn ;;
-        ipython) echo IPython ;;
-        *) echo "${1//-/_}" ;;
-    esac
-}
-
-REP_PACKAGE=$(pick_representative_package)
-if [ -n "$REP_PACKAGE" ]; then
-    REP_IMPORT=$(representative_import_name "$REP_PACKAGE")
-    "${PREFIX}/bin/python" -c "import ${REP_IMPORT}" >/dev/null 2>&1 \
-        || diagnose_import_failure "$REP_IMPORT" "$REP_PACKAGE"
+# Admin hint, not a check: list what else the spec declared so staff can spot-
+# check anything they're unsure about by hand. Never guesses an import name
+# (see above for why), so it never fails provisioning.
+if [ "$MANAGER" = micromamba ]; then
+    OTHER_PACKAGES=$(sed -n '/^dependencies:/,/^[^ ]/p' "${SPEC}/environment.yml" \
+        | grep -E '^[[:space:]]*-[[:space:]]+[A-Za-z]' \
+        | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/[<>=!,;].*$//; s/:$//; s/[[:space:]]+$//' \
+        | grep -vxE 'python|ipykernel|pip')
+else
+    OTHER_PACKAGES=$(grep -oE '"[A-Za-z0-9_.-]+' "${SPEC}/pyproject.toml" \
+        | sed -E 's/^"//' \
+        | grep -vxE 'python|ipykernel')
+fi
+if [ -n "$OTHER_PACKAGES" ]; then
+    lc_log "the spec also declares: $(printf '%s' "$OTHER_PACKAGES" | tr '\n' ' ')"
+    lc_log "spot-check any of these by hand if you want extra assurance, e.g. '${PREFIX}/bin/python -c \"import <name>\"' -- note the import name does not always match the package name"
 fi
 
 # --- Step 9: validate the permission model ----------------------------------

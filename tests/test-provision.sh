@@ -190,13 +190,12 @@ printf 'uv\n' > "$ROOT/spec/manager"
 : > "$ROOT/spec/pyproject.toml"
 assert_contains "$(provision "$ENVROOT")" "ambiguous"
 
-it "it rejects a prefix whose representative import fails"
-# A stub that actually distinguishes ipykernel (must pass) from a real course
-# package (must fail), so this proves the representative-import check is a
-# real, separate probe -- not a restatement of the ipykernel check.
+it "it rejects a prefix that cannot import ipykernel"
+# ipykernel is the ONE import provisioning still gates on: every spec declares
+# it, under exactly this name, and without it no kernel can start. A stub that
+# fails only that import (everything else about the prefix looks fine) proves
+# this hard gate still exists.
 ENVROOT=$(setup)
-printf 'name: t\nchannels:\n  - conda-forge\ndependencies:\n  - python=3.13\n  - ipykernel\n  - numpy\n' \
-    > "$ROOT/spec/environment.yml"
 cat > "$BIN/micromamba" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$@" >> "$STUB_LOG"
@@ -207,7 +206,7 @@ cat > "$P/bin/python" <<'PY'
 #!/bin/sh
 if [ "$1" = "-c" ]; then
     case "$2" in
-        *numpy*) exit 1 ;;
+        "import ipykernel") exit 1 ;;
         *) exit 0 ;;
     esac
 fi
@@ -216,19 +215,19 @@ PY
 chmod 755 "$P/bin/python"
 STUB
 chmod 755 "$BIN/micromamba"
-OUT=$(provision "$ENVROOT")
-assert_contains "$OUT" "numpy"
+OUT=$(PROVISION_DIAG_RETRY_DELAY=0 provision "$ENVROOT")
+assert_contains "$OUT" "cannot import ipykernel"
 
-it "a failed representative-import check leaves no staff records either"
+it "a failed ipykernel-import check leaves no staff records"
 assert_failure test -f "$ENVROOT/manager"
 
-it "it maps the ipython package to its actual, differently-cased import name"
-# Regression test for a real cs1090a provisioning failure: the representative-
-# import check ran `import ipython` (lowercase) against a package whose real
-# module is `IPython` (mixed case), so a correctly-installed environment was
-# rejected as broken. This stub fails ONLY the exact lowercase import, so it
-# proves the check now asks for the properly-cased name, not merely that some
-# import happened to succeed.
+it "provisioning succeeds even when a declared package's import name would not match a naive guess"
+# Regression test for a real cs1090a provisioning failure: a prior check
+# guessed an import name for some OTHER declared package (here, ipython) and
+# failed provisioning when the guess was wrong (the real module is IPython,
+# not ipython) -- rejecting a correctly-built environment. That guessing is
+# gone. This stub would have failed the old check (it fails the exact guess
+# `import ipython`) but must not affect provisioning at all now.
 ENVROOT=$(setup)
 printf 'name: t\nchannels:\n  - conda-forge\ndependencies:\n  - python=3.13\n  - ipykernel\n  - ipython\n' \
     > "$ROOT/spec/environment.yml"
@@ -251,7 +250,14 @@ PY
 chmod 755 "$P/bin/python"
 STUB
 chmod 755 "$BIN/micromamba"
-assert_success provision "$ENVROOT"
+OUT=$(provision "$ENVROOT")
+
+it "...and succeeds"
+assert_success test -x "$ENVROOT/default/bin/python"
+
+it "...and tells staff what else was declared, for a manual spot-check"
+assert_contains "$OUT" "the spec also declares:"
+assert_contains "$OUT" "ipython"
 
 it "it rejects a prefix whose interpreter reports the wrong Python version"
 # Step 8 requires that `python -V` reports the CONFIGURED version, not merely
