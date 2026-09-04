@@ -202,8 +202,51 @@ case "$ACTUAL_PY_VERSION" in
     *) fail "prefix '${PREFIX}' reports Python '${ACTUAL_PY_VERSION}', expected ${PY_VERSION}" ;;
 esac
 
+# Diagnostic for an import failure: the checks below used to swallow both
+# stdout and stderr, which is why a prior investigation into an ipython import
+# failure had to infer the cause from a filesystem listing after the fact
+# instead of the real traceback. This captures the actual exception, retries
+# once after a delay to tell a filesystem consistency race (which self-heals)
+# apart from a genuinely dropped file (which does not), and reports the
+# on-disk file count for the package that failed to import. Diagnostic-only:
+# it does not change whether provisioning ultimately fails.
+DIAG_RETRY_DELAY="${PROVISION_DIAG_RETRY_DELAY:-5}"
+diagnose_import_failure() {
+    local import_name="$1" spec_package="$2" first_traceback retry_traceback
+    local site_pkgs pkg_dir file_count dist_info record_count
+
+    first_traceback=$("${PREFIX}/bin/python" -c "import ${import_name}" 2>&1)
+
+    lc_log "diagnostic: import '${import_name}' failed; retrying after ${DIAG_RETRY_DELAY}s to check for a filesystem consistency race"
+    sleep "$DIAG_RETRY_DELAY"
+    retry_traceback=$("${PREFIX}/bin/python" -c "import ${import_name}" 2>&1)
+    if [ -z "$retry_traceback" ]; then
+        lc_log "diagnostic: '${import_name}' imported successfully on RETRY -- this points at a filesystem consistency race, not a dropped file"
+    else
+        lc_log "diagnostic: '${import_name}' still fails on retry -- not a transient race"
+    fi
+
+    site_pkgs="${PREFIX}/lib/python${PY_VERSION}/site-packages"
+    pkg_dir=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}" 2>/dev/null | head -n1)
+    if [ -n "$pkg_dir" ]; then
+        file_count=$(find "$pkg_dir" -type f 2>/dev/null | wc -l | tr -d ' ')
+        lc_log "diagnostic: on-disk file count under '${pkg_dir}': ${file_count}"
+    else
+        lc_log "diagnostic: no directory matching '${import_name}' found under '${site_pkgs}'"
+    fi
+    dist_info=$(find "$site_pkgs" -maxdepth 1 -iname "${import_name}*.dist-info" 2>/dev/null | head -n1)
+    if [ -n "$dist_info" ] && [ -f "${dist_info}/RECORD" ]; then
+        record_count=$(grep -c "^${import_name}/" "${dist_info}/RECORD")
+        lc_log "diagnostic: RECORD at '${dist_info}' lists ${record_count} files under '${import_name}/'"
+    fi
+
+    lc_log "diagnostic: PATH=${PATH:-<unset>} PYTHONPATH=${PYTHONPATH:-<unset>} PYTHONHOME=${PYTHONHOME:-<unset>}"
+
+    fail "prefix '${PREFIX}' cannot import ${import_name} (from spec package '${spec_package}'); first-attempt error: ${first_traceback}"
+}
+
 "${PREFIX}/bin/python" -c "import ipykernel" >/dev/null 2>&1 \
-    || fail "prefix '${PREFIX}' cannot import ipykernel; no kernel can start"
+    || diagnose_import_failure ipykernel ipykernel
 
 # A representative import from the spec: the first dependency that is neither
 # python nor ipykernel (both already checked above). Best-effort by design --
@@ -240,7 +283,7 @@ REP_PACKAGE=$(pick_representative_package)
 if [ -n "$REP_PACKAGE" ]; then
     REP_IMPORT=$(representative_import_name "$REP_PACKAGE")
     "${PREFIX}/bin/python" -c "import ${REP_IMPORT}" >/dev/null 2>&1 \
-        || fail "prefix '${PREFIX}' cannot import ${REP_IMPORT} (from spec package '${REP_PACKAGE}')"
+        || diagnose_import_failure "$REP_IMPORT" "$REP_PACKAGE"
 fi
 
 # --- Step 9: validate the permission model ----------------------------------
