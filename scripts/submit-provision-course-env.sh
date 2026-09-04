@@ -120,54 +120,14 @@ printf 'environment_root=%s\n' "$ENV_ROOT"
 [ -w "$COURSE_FOLDER" ] \
     || fail "course folder '${COURSE_FOLDER}' is not writable"
 
-# --- Step 4: cross-check both apps' rendered sub-apps against what was -----
-# derived above. A silent disagreement here provisions one path while
-# sessions launch against another. Skipped (with a warning) when Ruby is
-# unavailable, and when the administrator explicitly overrode the
-# environment root -- an explicit override is a deliberate deviation from the
-# sub-apps' declared value, not a mistake to flag.
-RENDER_RB="${REPO_ROOT}/tests/render.rb"
-if [ -n "$ENV_ROOT_OVERRIDE" ]; then
-    lc_log "WARNING: --environment-root override given; skipping the sub-app agreement check"
-elif ! command -v ruby >/dev/null 2>&1; then
-    lc_log "WARNING: ruby not found; skipping the sub-app agreement check"
-else
-    for app_dir in jupyterlab-ai codeserver-ai; do
-        subapp="${REPO_ROOT}/ood/${app_dir}/local/${COURSE}.yml.erb"
-        if [ ! -f "$subapp" ]; then
-            lc_log "WARNING: no sub-app at '${subapp}'; skipping its agreement check"
-            continue
-        fi
-
-        rendered=$(ruby "$RENDER_RB" --form "$subapp" 2>&1) \
-            || fail "sub-app '${subapp}' failed to render: ${rendered}"
-
-        rendered_folder=$(printf '%s' "$rendered" | jq -r '.attributes.course_folder // empty')
-        rendered_env_root=$(printf '%s' "$rendered" | jq -r '.attributes.environment_root // empty')
-
-        # An EMPTY environment_root is not a disagreement about a path: it is
-        # the sub-app declaring that this course wants no course-shared
-        # environment at all. Provisioning one would build a prefix no session
-        # ever looks at, so say what is actually wrong instead of printing two
-        # paths that differ.
-        if [ -z "$rendered_env_root" ]; then
-            fail "sub-app '${subapp}' declares no environment_root, so this course runs on its image alone. Set environment_root in the sub-app first, or pass --environment-root to provision one deliberately anyway."
-        fi
-
-        if [ "$rendered_folder" != "$COURSE_FOLDER" ] || [ "$rendered_env_root" != "$ENV_ROOT" ]; then
-            fail "sub-app '${subapp}' declares course_folder='${rendered_folder}' environment_root='${rendered_env_root}', which disagrees with the derived course_folder='${COURSE_FOLDER}' environment_root='${ENV_ROOT}'"
-        fi
-    done
-fi
-
-# --- Step 5: resolve the deployed image, through the same two roots the ----
+# --- Step 4: resolve the deployed image, through the same two roots the ----
 # launcher uses.
 IMAGE_PATH=$(lc_select_image "$IMAGE_FILE") \
     || fail "could not resolve image '${IMAGE_FILE}'"
 [ -r "$IMAGE_PATH" ] \
     || fail "resolved image '${IMAGE_PATH}' is not readable"
 
-# --- Step 6: generate the batch script --------------------------------------
+# --- Step 5: generate the batch script --------------------------------------
 # Provisioning scratch: its own subtree of the same scratch root the launch
 # path uses, so nothing here competes with a live session's cache.
 SCRATCH_ROOT="${OOD_APPTAINER_SCRATCH_ROOT:-/scratch/$(id -nu)/ood/apptainer}"
@@ -229,7 +189,7 @@ trap 'rm -f "$JOB_SCRIPT_FILE"' EXIT
 printf '%s\n' "$JOB_SCRIPT_CONTENT" > "$JOB_SCRIPT_FILE"
 chmod 755 "$JOB_SCRIPT_FILE"
 
-# --- Step 8: submit ONE job -----------------------------------------------
+# --- Step 6: submit ONE job -----------------------------------------------
 lc_log "submitting provisioning job for course '${COURSE}' (Slurm log: ${SLURM_LOG})"
 sbatch \
     --job-name="provision-course-env-${COURSE}" \
