@@ -37,7 +37,7 @@ Each release is published to two roots with different roles. The canonical root 
 
 Publication and activation are separate. Publishing makes an image available to the launcher. A reviewed change to a sub-app's `imagefile:` selects the image students receive, so publishing bytes never changes a live sub-app by itself.
 
-`deploy-image.sh` enforces these rules: it requires both sidecars, verifies the source and each copy, refuses existing names in either root, derives the family from metadata, sets readable modes, writes the canonical root first, and prints rather than edits the `imagefile:` value.
+`deploy-image.sh` enforces these rules: it requires both sidecars, verifies the source and each copy, refuses existing names in either root, derives the family from metadata, sets readable modes, writes the canonical root first, and prints rather than edits the `imagefile:` value. The cross-account S3 bucket that `publish-image.sh` and `promote-image.sh` use to move an artifact between accounts enforces the same immutable-name rule on its own copy, but with a weaker guarantee: it refuses a name already present, verified with a `head-object` call, rather than `deploy-image.sh`'s check against a filesystem it fully controls.
 
 ## Images use two shared storage roots
 

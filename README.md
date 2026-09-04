@@ -79,6 +79,8 @@ What you still have to write is everything that states a fact about the app: an 
 | `submit-build-image.sh` | Submits the compute-node job that builds one image |
 | `build-image.sh` | Builds one immutable image artifact with checksum and metadata sidecars |
 | `deploy-image.sh` | Publishes one built artifact and its sidecars to both cluster image roots |
+| `publish-image.sh` | Uploads one already-built artifact and its sidecars to the cross-account S3 bucket |
+| `promote-image.sh` | Downloads a published artifact from S3 and hands it to `deploy-image.sh` |
 | `submit-provision-course-env.sh` | Submits the compute-node job that provisions one course's Python environment |
 | `provision-course-env.sh` | The image-side script that job runs |
 | `render-forms.sh` | Release gate — renders every sub-app against its templates and cross-checks them |
@@ -99,6 +101,8 @@ What you still have to write is everything that states a fact about the app: an 
 | `OOD_APPTAINER_TARGET_ARCH` | `x86_64` | `build-image.sh` |
 | `OOD_APPTAINER_OUTPUT_DIR` | `<repo>/build` | `build-image.sh` |
 | `OOD_APPTAINER_BUILD_SCRATCH` | `/scratch/<user>/apptainer-build` | `build-image.sh`, `submit-build-image.sh` |
+| `OOD_APPTAINER_S3_BUCKET` | `ood-software` | `publish-image.sh`, `promote-image.sh` |
+| `OOD_APPTAINER_S3_PREFIX` | `apptainerImages` | `publish-image.sh`, `promote-image.sh` |
 
 The test suite sets all but `OOD_APPTAINER_OUTPUT_DIR`, pointing them at fixtures; that is what they exist for. `build-image.sh` names `OOD_APPTAINER_TARGET_ARCH` and `OOD_APPTAINER_BUILD_SCRATCH` in its own failure messages, at the moment either one is needed.
 
