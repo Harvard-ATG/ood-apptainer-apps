@@ -161,10 +161,12 @@ mkdir -p "$MAMBA_ROOT_PREFIX" "$UV_CACHE_DIR" "$TMPDIR" "$PIP_CACHE_DIR" "$HOME"
 mkdir -p "$RESOLVED_ENV_ROOT" || fail "cannot create environment root '${RESOLVED_ENV_ROOT}'"
 
 if [ "$MANAGER" = micromamba ]; then
-    # Run from scratch so micromamba doesn't try to create temp files in the
-    # read-only spec directory when processing pip packages in environment.yml
-    cd "$SCRATCH" || fail "cannot change to scratch directory '${SCRATCH}'"
-    micromamba create --yes --prefix "$PREFIX" --file "${SPEC}/environment.yml" \
+    # Copy spec to scratch to avoid temp file issues: micromamba may try to create
+    # temp files in the spec directory (even with TMPDIR set), which fails when the
+    # spec is inside a read-only-bound repo. Use the copied spec instead.
+    SPEC_COPY="${SCRATCH}/environment.yml"
+    cp "${SPEC}/environment.yml" "$SPEC_COPY" || fail "cannot copy environment.yml to scratch"
+    micromamba create --yes --prefix "$PREFIX" --file "$SPEC_COPY" \
         || fail "micromamba create failed for prefix '${PREFIX}'"
 else
     # A uv prefix built against the image's Python would break when the image's
